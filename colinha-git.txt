@@ -1,0 +1,54 @@
+# 🧠 COLINHA SIMPLES DE GIT
+
+## 📥 Clonar projeto (outro PC)
+
+git clone URL
+cd nome-do-projeto
+
+---
+
+## 🔄 Antes de começar
+
+git pull
+
+---
+
+## ✏️ Salvar alterações
+
+git add .
+git commit -m "mensagem"
+git push
+
+---
+
+## 🔁 Fluxo padrão (sempre)
+
+git pull
+git add .
+git commit -m "mensagem"
+git push
+
+---
+
+## ❌ Deletar arquivo/pasta
+
+git rm -r --cached nome
+git commit -m "removendo"
+git push
+
+---
+
+## ⚠️ Deu erro no push
+
+git pull origin main --rebase
+git push
+
+---
+
+## 💡 Regras rápidas
+
+* Sempre `git pull` antes
+* Sempre `git push` depois
+* Não subir `.next` e `node_modules`
+
+---
