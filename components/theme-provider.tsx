@@ -8,6 +8,10 @@ import {
   type Theme,
   CLARIFI_THEME_STORAGE_KEY,
 } from '@/lib/theme/clarifi-theme'
+import {
+  captureScrollPositions,
+  restoreScrollPositionsSoon,
+} from '@/lib/theme/preserve-scroll'
 
 type ThemeContextValue = {
   theme: Theme
@@ -44,7 +48,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const nextSystem = getSystemTheme()
       setSystemTheme(nextSystem)
       if (readStoredTheme() === 'system') {
+        const scroll = captureScrollPositions()
         setResolvedTheme(applyThemeToDocument('system'))
+        restoreScrollPositionsSoon(scroll)
       }
     }
     mq.addEventListener('change', onChange)
@@ -52,6 +58,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const setTheme = React.useCallback((next: Theme) => {
+    const scroll = captureScrollPositions()
     setThemeState(next)
     try {
       localStorage.setItem(CLARIFI_THEME_STORAGE_KEY, next)
@@ -62,6 +69,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (next === 'system') {
       setSystemTheme(getSystemTheme())
     }
+    restoreScrollPositionsSoon(scroll)
   }, [])
 
   const value = React.useMemo(

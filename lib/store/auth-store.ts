@@ -70,7 +70,7 @@ interface AuthState {
   setSubscriptionStatus: (status: 'free' | 'premium') => void
   /** Primeiro acesso: tour de boas-vindas concluído. */
   completeWelcomeTour: () => void
-  /** Tour do painel (somente após novo cadastro). */
+  /** Tour do painel (legado — mantido para compatibilidade). */
   completeDashboardTour: () => void
   /** Foto de perfil local (data URL nesta demo). `null` remove. */
   setUserAvatar: (dataUrl: string | null) => void
@@ -311,11 +311,14 @@ export const useAuthStore = create<AuthState>()(
         const updated: User = {
           ...currentUser,
           onboardingCompleted: true,
+          dashboardTourCompleted: true,
         }
         set({
           user: updated,
           users: get().users.map((u) =>
-            u.id === currentUser.id ? { ...u, onboardingCompleted: true } : u,
+            u.id === currentUser.id
+              ? { ...u, onboardingCompleted: true, dashboardTourCompleted: true }
+              : u,
           ),
         })
       },
@@ -364,7 +367,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'clarifi-auth',
-      version: 6,
+      version: 7,
       migrate: (persisted, fromVersion) => {
         const p = persisted as {
           user?: User | null
@@ -414,6 +417,15 @@ export const useAuthStore = create<AuthState>()(
             dashboardTourCompleted: u.dashboardTourCompleted ?? true,
           }))
           if (p.user && p.user.dashboardTourCompleted === undefined) {
+            p.user = { ...p.user, dashboardTourCompleted: true }
+          }
+        }
+        if (fromVersion < 7) {
+          p.users = p.users.map((u) => ({
+            ...u,
+            dashboardTourCompleted: true,
+          }))
+          if (p.user) {
             p.user = { ...p.user, dashboardTourCompleted: true }
           }
         }

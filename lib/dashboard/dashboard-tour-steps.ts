@@ -56,7 +56,6 @@ export const DASHBOARD_TOUR_STEPS: DashboardTourStep[] = [
     tip: 'O ícone do sino mostra quando há alertas novos.',
     icon: PanelTop,
     placement: 'bottom',
-    spotlightPad: 4,
     continueLabel: 'Continuar',
   },
   {

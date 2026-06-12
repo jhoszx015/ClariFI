@@ -232,7 +232,7 @@ const SortableQuickActionTile = memo(function SortableQuickActionTile({
           </button>
           <div
             className={cn(
-              'flex cursor-pointer items-center gap-3 p-4 touch-manipulation',
+              'flex cursor-pointer items-center gap-3 p-4 pr-10 touch-manipulation',
               isDragging && 'cursor-grabbing',
             )}
             {...attributes}

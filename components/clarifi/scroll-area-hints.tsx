@@ -56,7 +56,7 @@ export function ScrollAreaHints({
   return (
     <div className={cn('relative flex min-h-0 flex-1 flex-col', className)}>
       {canScrollUp ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10" aria-hidden>
+        <div className="scroll-area-hint pointer-events-none absolute inset-x-0 top-0 z-10" aria-hidden>
           <div className={cn('h-6 bg-gradient-to-b to-transparent', fadeClassName)} />
           <div className="absolute left-1/2 top-1.5 h-0.5 w-8 -translate-x-1/2 rounded-full bg-muted-foreground/35" />
         </div>
@@ -71,7 +71,7 @@ export function ScrollAreaHints({
       </div>
 
       {canScrollDown ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10" aria-hidden>
+        <div className="scroll-area-hint pointer-events-none absolute inset-x-0 bottom-0 z-10" aria-hidden>
           <div className={cn('h-8 bg-gradient-to-t to-transparent', fadeClassName)} />
           <div className="absolute bottom-2 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-muted-foreground/35" />
         </div>

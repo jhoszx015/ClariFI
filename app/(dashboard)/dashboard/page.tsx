@@ -216,9 +216,13 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-7">
-      <div className="flex flex-col gap-2" data-tour="dashboard-greeting">
-        <h1 className="text-2xl font-bold text-foreground md:text-3xl">Olá, {firstName}!</h1>
-        <p className="text-muted-foreground">Aqui está o essencial para decidir seu próximo passo hoje.</p>
+      <div className="flex flex-col gap-1.5" data-tour="dashboard-greeting">
+        <h1 className="text-2xl font-bold leading-tight text-foreground md:text-3xl">
+          Olá, {firstName}!
+        </h1>
+        <p className="text-sm leading-snug text-muted-foreground md:text-base">
+          Aqui está o essencial para decidir seu próximo passo hoje.
+        </p>
       </div>
 
       <DashboardQuickActions />

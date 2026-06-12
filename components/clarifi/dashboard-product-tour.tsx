@@ -14,11 +14,13 @@ import {
 } from '@/lib/dashboard/dashboard-tour-steps'
 import {
   TOUR_COACH_ESTIMATE_H,
+  TOUR_CUTOUT_PAD,
   computeBottomSheetCoachLayout,
   computeCoachCardCutout,
   measureCoachCardCutout,
   measureSpotlightRect,
   resolveTourStepLayout,
+  scrollSpotlightAboveCoach,
   type CoachLayout,
   type TourRect,
 } from '@/lib/dashboard/dashboard-tour-layout'
@@ -30,6 +32,8 @@ type DashboardProductTourProps = {
 }
 
 type TourPhase = 'intro' | 'steps' | 'finish'
+
+const STEP_TRANSITION_MS = 300
 
 function queryTourTarget(selector: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-tour="${selector}"]`)
@@ -63,6 +67,15 @@ function useViewportSize(active: boolean) {
   return size
 }
 
+function rectStyle(rect: TourRect): React.CSSProperties {
+  return {
+    top: rect.top,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
 function TourStepScrim({
   spotlight,
   coachCutout,
@@ -78,7 +91,7 @@ function TourStepScrim({
 
   return (
     <svg
-      className="dashboard-tour-scrim pointer-events-auto fixed inset-0 z-[261] h-full w-full"
+      className="dashboard-tour-scrim pointer-events-none fixed inset-0 z-[261] h-full w-full"
       viewBox={`0 0 ${viewport.w} ${viewport.h}`}
       preserveAspectRatio="none"
       aria-hidden
@@ -91,7 +104,7 @@ function TourStepScrim({
             y={spotlight.top}
             width={spotlight.width}
             height={spotlight.height}
-            rx={12}
+            rx={10}
             fill="black"
           />
           <rect
@@ -99,7 +112,7 @@ function TourStepScrim({
             y={coachCutout.top}
             width={coachCutout.width}
             height={coachCutout.height}
-            rx={12}
+            rx={10}
             fill="black"
           />
         </mask>
@@ -138,9 +151,9 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
   const [coachLayout, setCoachLayout] = React.useState<CoachLayout | null>(null)
   const [coachCutout, setCoachCutout] = React.useState<TourRect | null>(null)
   const [coachHeight, setCoachHeight] = React.useState(TOUR_COACH_ESTIMATE_H)
-  const [contentTick, setContentTick] = React.useState(0)
-  const measureFrameRef = React.useRef<number | null>(null)
   const coachCardRef = React.useRef<HTMLDivElement | null>(null)
+  const transitionFrameRef = React.useRef<number | null>(null)
+  const skipStepAnimationRef = React.useRef(true)
 
   const firstName = (userName?.trim().split(/\s+/)[0] || 'você').replace(/[!.]+$/, '')
   const isDashboardHome = pathname === '/dashboard' || pathname === '/dashboard/'
@@ -148,9 +161,111 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
   const step = phase === 'steps' ? DASHBOARD_TOUR_STEPS[stepIndex] : null
   const isLastStep = stepIndex >= DASHBOARD_TOUR_STEPS.length - 1
   const totalSteps = DASHBOARD_TOUR_STEPS.length
-  const showSpotlight = phase === 'steps' && spotlight !== null
+  const showSpotlight = phase === 'steps' && spotlight !== null && coachCutout !== null
   const viewport = useViewportSize(active)
   const StepIcon = step?.icon
+
+  const applyLayoutForStep = React.useCallback(
+    (
+      targetStep: (typeof DASHBOARD_TOUR_STEPS)[number],
+      height: number,
+      smoothScroll = false,
+    ) => {
+      const el = queryTourTarget(targetStep.target)
+      if (!el) return false
+
+      const pad = targetStep.spotlightPad ?? TOUR_CUTOUT_PAD
+      const layout = resolveTourStepLayout(el, height, pad, !smoothScroll)
+      const card = coachCardRef.current
+      const cutout = card ? measureCoachCardCutout(card) : computeCoachCardCutout(layout.coach)
+
+      setSpotlight(layout.spotlight)
+      setCoachLayout(layout.coach)
+      setCoachCutout(cutout)
+      return true
+    },
+    [],
+  )
+
+  const cancelStepTransition = React.useCallback(() => {
+    if (transitionFrameRef.current !== null) {
+      window.cancelAnimationFrame(transitionFrameRef.current)
+      transitionFrameRef.current = null
+    }
+  }, [])
+
+  const runStepTransition = React.useCallback(
+    (targetStep: (typeof DASHBOARD_TOUR_STEPS)[number], animated: boolean) => {
+      cancelStepTransition()
+
+      const card = coachCardRef.current
+      const height = card?.offsetHeight ?? coachHeight
+      const el = queryTourTarget(targetStep.target)
+      if (!el) return
+
+      const pad = targetStep.spotlightPad ?? TOUR_CUTOUT_PAD
+
+      const commitLayout = () => {
+        const measuredHeight = coachCardRef.current?.offsetHeight ?? height
+        if (Math.abs(measuredHeight - coachHeight) > 2) {
+          setCoachHeight(measuredHeight)
+        }
+        applyLayoutForStep(targetStep, measuredHeight, false)
+      }
+
+      if (!animated || reduceMotion) {
+        applyLayoutForStep(targetStep, height, false)
+        return
+      }
+
+      scrollSpotlightAboveCoach(el, height, false)
+
+      const start = performance.now()
+      const tick = (now: number) => {
+        const liveCard = coachCardRef.current
+        const liveHeight = liveCard?.offsetHeight ?? height
+        const coach = computeBottomSheetCoachLayout(liveHeight)
+
+        setSpotlight(measureSpotlightRect(el, pad))
+        setCoachLayout(coach)
+        setCoachCutout(
+          liveCard ? measureCoachCardCutout(liveCard) : computeCoachCardCutout(coach),
+        )
+
+        if (now - start < STEP_TRANSITION_MS) {
+          transitionFrameRef.current = window.requestAnimationFrame(tick)
+          return
+        }
+
+        transitionFrameRef.current = null
+        commitLayout()
+      }
+
+      transitionFrameRef.current = window.requestAnimationFrame(tick)
+    },
+    [applyLayoutForStep, cancelStepTransition, coachHeight, reduceMotion],
+  )
+
+  const remeasureLayout = React.useCallback(() => {
+    if (phase !== 'steps' || !step) return
+
+    const card = coachCardRef.current
+    const height = card?.offsetHeight ?? coachHeight
+    if (card && Math.abs(height - coachHeight) > 2) {
+      setCoachHeight(height)
+    }
+
+    const el = queryTourTarget(step.target)
+    if (!el) return
+
+    const pad = step.spotlightPad ?? TOUR_CUTOUT_PAD
+    scrollSpotlightAboveCoach(el, height, true)
+
+    const coach = computeBottomSheetCoachLayout(height)
+    setSpotlight(measureSpotlightRect(el, pad))
+    setCoachLayout(coach)
+    setCoachCutout(card ? measureCoachCardCutout(card) : computeCoachCardCutout(coach))
+  }, [phase, step, coachHeight])
 
   React.useEffect(() => {
     setMounted(true)
@@ -158,6 +273,8 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
 
   React.useEffect(() => {
     if (!active) {
+      cancelStepTransition()
+      skipStepAnimationRef.current = true
       setPhase('intro')
       setStepIndex(0)
       setSpotlight(null)
@@ -165,117 +282,42 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
       setCoachCutout(null)
       setCoachHeight(TOUR_COACH_ESTIMATE_H)
     }
-  }, [active])
+  }, [active, cancelStepTransition])
 
   React.useEffect(() => {
     if (!active) return
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    document.documentElement.classList.add('dashboard-tour-active')
     return () => {
       document.body.style.overflow = prev
+      document.documentElement.classList.remove('dashboard-tour-active')
     }
   }, [active])
 
-  const syncCoachCutout = React.useCallback((layout: CoachLayout | null) => {
-    const card = coachCardRef.current
-    if (card) {
-      setCoachCutout(measureCoachCardCutout(card))
-      return
-    }
-    if (layout) {
-      setCoachCutout(computeCoachCardCutout(layout))
-    }
-  }, [])
+  React.useEffect(() => {
+    return () => cancelStepTransition()
+  }, [cancelStepTransition])
 
-  const applyStepLayout = React.useCallback(
-    (el: HTMLElement, height: number, withScroll: boolean) => {
-      const pad = step?.spotlightPad ?? 8
+  React.useEffect(() => {
+    if (phase !== 'steps' || !step) return
 
-      if (withScroll) {
-        const layout = resolveTourStepLayout(el, height, pad, reduceMotion)
-        setSpotlight(layout.spotlight)
-        setCoachLayout(layout.coach)
-        syncCoachCutout(layout.coach)
-        return
-      }
-
-      const coach = computeBottomSheetCoachLayout(height)
-      setSpotlight(measureSpotlightRect(el, pad))
-      setCoachLayout(coach)
-      syncCoachCutout(coach)
-    },
-    [step, reduceMotion, syncCoachCutout],
-  )
-
-  const measureTarget = React.useCallback(
-    (withScroll = false) => {
-      if (!active || phase !== 'steps' || !step) return
-
-      const el = queryTourTarget(step.target)
-      if (!el) return
-
-      const height = coachCardRef.current?.offsetHeight ?? coachHeight
-      applyStepLayout(el, height, withScroll)
-
-      if (withScroll && !reduceMotion) {
-        window.setTimeout(() => {
-          const elLater = queryTourTarget(step.target)
-          if (!elLater) return
-          const measured = coachCardRef.current?.offsetHeight ?? height
-          if (measured !== coachHeight) setCoachHeight(measured)
-          applyStepLayout(elLater, measured, true)
-        }, 560)
-      }
-    },
-    [active, phase, step, coachHeight, reduceMotion, applyStepLayout],
-  )
-
-  const scheduleMeasure = React.useCallback(
-    (withScroll = false) => {
-      if (measureFrameRef.current !== null) {
-        window.cancelAnimationFrame(measureFrameRef.current)
-      }
-      measureFrameRef.current = window.requestAnimationFrame(() => {
-        measureFrameRef.current = null
-        measureTarget(withScroll)
-      })
-    },
-    [measureTarget],
-  )
+    const animate = !skipStepAnimationRef.current && !reduceMotion
+    skipStepAnimationRef.current = false
+    runStepTransition(step, animate)
+  }, [phase, stepIndex, step, reduceMotion, runStepTransition])
 
   React.useEffect(() => {
     if (phase !== 'steps') return
 
-    const coach = computeBottomSheetCoachLayout(coachHeight)
-    setCoachLayout(coach)
-    syncCoachCutout(coach)
-    scheduleMeasure(true)
-
-    const onResize = () => scheduleMeasure(true)
+    const onResize = () => remeasureLayout()
     window.addEventListener('resize', onResize, { passive: true })
     return () => window.removeEventListener('resize', onResize)
-  }, [scheduleMeasure, stepIndex, phase, contentTick, coachHeight, syncCoachCutout])
-
-  React.useLayoutEffect(() => {
-    if (!showSpotlight || !step) return
-    const el = queryTourTarget(step.target)
-    const card = coachCardRef.current
-    if (!el || !card) return
-
-    setCoachCutout(measureCoachCardCutout(card))
-
-    const measured = card.offsetHeight
-    if (Math.abs(measured - coachHeight) < 6) return
-
-    setCoachHeight(measured)
-    applyStepLayout(el, measured, true)
-  }, [showSpotlight, step, coachHeight, contentTick, applyStepLayout])
-
-  const bumpContent = () => setContentTick((n) => n + 1)
+  }, [phase, remeasureLayout])
 
   const handleSkip = () => onComplete()
+
   const handleIntroStart = () => {
-    bumpContent()
     setPhase('steps')
   }
 
@@ -289,14 +331,12 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
       return
     }
     if (isLastStep) {
-      bumpContent()
       setPhase('finish')
       setSpotlight(null)
       setCoachLayout(null)
       setCoachCutout(null)
       return
     }
-    bumpContent()
     setStepIndex((i) => i + 1)
   }
 
@@ -316,49 +356,49 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
         }
       : undefined
 
-  const spotlightStyle: React.CSSProperties | undefined = spotlight
-    ? {
-        top: spotlight.top,
-        left: spotlight.left,
-        width: spotlight.width,
-        height: spotlight.height,
-      }
-    : undefined
-
   return createPortal(
     <div
-      className={cn('dashboard-tour-root fixed inset-0 z-[260] pointer-events-none', motionClass)}
+      className={cn('dashboard-tour-root fixed inset-0 z-[260]', motionClass)}
       role="dialog"
       aria-modal
       aria-labelledby="dashboard-tour-title"
     >
       {phase === 'intro' ? (
         <div
-          className="dashboard-tour-backdrop dashboard-tour-backdrop--intro pointer-events-auto absolute inset-0"
+          className="dashboard-tour-backdrop dashboard-tour-backdrop--intro pointer-events-auto absolute inset-0 z-[261]"
           aria-hidden
         />
       ) : null}
 
       {phase === 'finish' ? (
         <div
-          className="dashboard-tour-backdrop dashboard-tour-backdrop--finish pointer-events-auto absolute inset-0"
+          className="dashboard-tour-backdrop dashboard-tour-backdrop--finish pointer-events-auto absolute inset-0 z-[261]"
           aria-hidden
         />
       ) : null}
 
       {phase === 'steps' && !showSpotlight ? (
         <div
-          className="dashboard-tour-backdrop dashboard-tour-backdrop--loading pointer-events-auto absolute inset-0"
+          className="dashboard-tour-backdrop dashboard-tour-backdrop--loading pointer-events-auto absolute inset-0 z-[261]"
           aria-hidden
         />
       ) : null}
 
-      {phase === 'steps' && showSpotlight && spotlight && coachCutout ? (
+      {phase === 'steps' && showSpotlight ? (
+        <div className="pointer-events-auto absolute inset-0 z-[261]" aria-hidden />
+      ) : null}
+
+      {showSpotlight && spotlight && coachCutout ? (
         <>
           <TourStepScrim spotlight={spotlight} coachCutout={coachCutout} viewport={viewport} />
           <div
-            className="dashboard-tour-spotlight-ring pointer-events-none"
-            style={spotlightStyle}
+            className="dashboard-tour-cutout-ring dashboard-tour-cutout-ring--target"
+            style={rectStyle(spotlight)}
+            aria-hidden
+          />
+          <div
+            className="dashboard-tour-cutout-ring dashboard-tour-cutout-ring--coach"
+            style={rectStyle(coachCutout)}
             aria-hidden
           />
         </>
@@ -366,10 +406,10 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
 
       <div
         className={cn(
-          'pointer-events-none z-[263]',
+          'z-[263]',
           phase === 'steps' && showSpotlight
             ? 'contents'
-            : 'fixed inset-0 flex items-center justify-center p-4',
+            : 'pointer-events-none fixed inset-0 flex items-center justify-center p-4',
         )}
       >
         <div
@@ -377,21 +417,29 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
           className={cn(
             'dashboard-tour-card pointer-events-auto rounded-xl border border-border/80 bg-background',
             phase === 'steps' && showSpotlight
-              ? 'dashboard-tour-card--sheet fixed overflow-visible'
-              : 'relative w-full max-w-md overflow-hidden',
+              ? 'dashboard-tour-card--sheet fixed z-[263] overflow-visible'
+              : 'relative z-[263] w-full max-w-md overflow-hidden',
           )}
           style={phase === 'steps' && showSpotlight ? coachStyle : undefined}
         >
-          <div key={`${phase}-${step?.id ?? 'none'}-${contentTick}`} className="dashboard-tour-card-body">
+          <div
+            key={phase === 'steps' ? step?.id : phase}
+            className={cn(
+              'dashboard-tour-card-body',
+              phase === 'steps' && 'dashboard-tour-card-body--step',
+            )}
+          >
             {phase === 'intro' ? (
               <div className="space-y-4 p-5 sm:p-6">
                 <div className="flex items-center gap-3">
-                  <div className="dashboard-tour-icon flex h-11 w-11 items-center justify-center rounded-lg bg-primary">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
                     <Sparkle className="h-5 w-5 text-primary-foreground" aria-hidden />
                   </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Primeiro passeio</p>
-                    <p className="text-sm">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium leading-none text-muted-foreground">
+                      Primeiro passeio
+                    </p>
+                    <p className="mt-1 text-sm">
                       Olá, <span className="font-semibold text-primary">{firstName}</span>
                     </p>
                   </div>
@@ -403,14 +451,14 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
                   <p className="text-sm text-muted-foreground">{DASHBOARD_TOUR_INTRO.body}</p>
                 </div>
                 <TourProgressBar value={progressValue} total={totalSteps} />
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                   <Button type="button" className="w-full gap-1 sm:flex-1" onClick={handleIntroStart}>
                     {DASHBOARD_TOUR_INTRO.cta}
                     <ChevronRight className="h-4 w-4" aria-hidden />
                   </Button>
                   <button
                     type="button"
-                    className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                    className="inline-flex h-9 items-center justify-center text-xs text-muted-foreground hover:text-foreground hover:underline sm:shrink-0 sm:px-2"
                     onClick={handleSkip}
                   >
                     Pular introdução
@@ -421,15 +469,18 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
 
             {phase === 'steps' && step && StepIcon ? (
               <div className="space-y-3 p-4 sm:p-5">
-                <div className="flex items-start gap-3">
-                  <div className="dashboard-tour-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                    <StepIcon className="h-4 w-4 text-primary" aria-hidden />
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <StepIcon className="h-[18px] w-[18px] text-primary" aria-hidden />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium text-muted-foreground">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-medium leading-none text-muted-foreground">
                       {stepIndex + 1} de {totalSteps}
                     </p>
-                    <h2 id="dashboard-tour-title" className="text-base font-semibold leading-snug">
+                    <h2
+                      id="dashboard-tour-title"
+                      className="mt-1 text-base font-semibold leading-snug"
+                    >
                       {step.title}
                     </h2>
                   </div>
@@ -445,13 +496,13 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
                 <TourProgressBar value={progressValue} total={totalSteps} />
 
                 <div className="flex items-center gap-3">
-                  <Button type="button" className="flex-1 gap-1" size="sm" onClick={handleContinue}>
+                  <Button type="button" className="min-h-9 flex-1 gap-1" size="sm" onClick={handleContinue}>
                     {step.continueLabel ?? (isLastStep ? 'Finalizar' : 'Continuar')}
                     <ChevronRight className="h-4 w-4" aria-hidden />
                   </Button>
                   <button
                     type="button"
-                    className="shrink-0 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                    className="inline-flex h-9 shrink-0 items-center text-xs text-muted-foreground hover:text-foreground hover:underline"
                     onClick={handleSkip}
                   >
                     Pular
@@ -462,7 +513,7 @@ export function DashboardProductTour({ open, userName, onComplete }: DashboardPr
 
             {phase === 'finish' ? (
               <div className="space-y-4 p-5 sm:p-6">
-                <div className="dashboard-tour-icon flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
                   <Sparkle className="h-6 w-6 text-primary-foreground" aria-hidden />
                 </div>
                 <div className="space-y-1.5">

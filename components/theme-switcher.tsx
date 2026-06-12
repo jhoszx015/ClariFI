@@ -39,7 +39,11 @@ export function ThemeSwitcher() {
           <Moon className="absolute h-[1.15rem] w-[1.15rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[10rem]">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-[10rem]"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <DropdownMenuItem onClick={() => setTheme('light')}>
           <Sun className="mr-2 h-4 w-4" />
           Claro

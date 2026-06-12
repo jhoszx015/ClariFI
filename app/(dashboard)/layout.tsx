@@ -38,7 +38,6 @@ import { ThemeSwitcher } from '@/components/theme-switcher'
 import { Wallet, User, LogOut, Bell, ChevronUp } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { WelcomeOnboarding } from '@/components/clarifi/welcome-onboarding'
-import { DashboardProductTour } from '@/components/clarifi/dashboard-product-tour'
 import { ProfileRevealScreen } from '@/components/clarifi/profile-reveal-screen'
 import { AiAssistantProvider, useAiAssistant } from '@/components/clarifi/ai-assistant-context'
 import { AiAssistantPanel } from '@/components/clarifi/ai-assistant-panel'
@@ -53,6 +52,8 @@ const NAV_SECTION_LABEL: Record<string, string> = {
 }
 
 const menuItems = DASHBOARD_SIDEBAR_MENU
+
+const LOGOUT_HOME_REDIRECT_KEY = 'clarifi-logout-home'
 
 function DashboardShellLoading() {
   return (
@@ -113,7 +114,6 @@ export default function DashboardLayout({
   const hasHydrated = useAuthStore((state) => state.hasHydrated)
   const logout = useAuthStore((state) => state.logout)
   const completeWelcomeTour = useAuthStore((state) => state.completeWelcomeTour)
-  const completeDashboardTour = useAuthStore((state) => state.completeDashboardTour)
   const pendingProfileReveal = useAuthStore((state) => state.pendingProfileReveal)
   const dismissProfileReveal = useAuthStore((state) => state.dismissProfileReveal)
   const financeHydrated = useFinanceStore((state) => state.financeHydrated)
@@ -122,19 +122,22 @@ export default function DashboardLayout({
 
   const unreadAlerts = useMemo(() => alerts.filter((a) => !a.isRead).length, [alerts])
   const showWelcome = Boolean(user && user.onboardingCompleted !== true)
-  const showDashboardTour =
-    Boolean(
-      user &&
-        user.onboardingCompleted === true &&
-        user.dashboardTourCompleted !== true &&
-        (pathname === '/dashboard' || pathname === '/dashboard/'),
-    )
   const isMobile = useIsMobile()
 
   useEffect(() => {
-    if (hasHydrated && !isAuthenticated) {
-      router.push('/login')
+    if (!hasHydrated || isAuthenticated) return
+
+    try {
+      if (sessionStorage.getItem(LOGOUT_HOME_REDIRECT_KEY)) {
+        sessionStorage.removeItem(LOGOUT_HOME_REDIRECT_KEY)
+        router.replace('/')
+        return
+      }
+    } catch {
+      /* ignore */
     }
+
+    router.push('/login')
   }, [hasHydrated, isAuthenticated, router])
 
   useEffect(() => {
@@ -187,8 +190,12 @@ export default function DashboardLayout({
   }
 
   const handleLogout = () => {
+    try {
+      sessionStorage.setItem(LOGOUT_HOME_REDIRECT_KEY, '1')
+    } catch {
+      /* ignore */
+    }
     logout()
-    router.push('/')
   }
 
   const sidebarNav = (
@@ -241,8 +248,8 @@ export default function DashboardLayout({
                     className="h-8 w-8 shrink-0"
                     fallbackClassName="bg-primary/10 text-xs text-primary"
                   />
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-none">
-                    <span className="truncate font-medium">{user.name || 'Usuário'}</span>
+                  <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 leading-tight">
+                    <span className="truncate text-sm font-medium">{user.name || 'Usuário'}</span>
                     <span className="truncate text-xs text-muted-foreground">{user.email}</span>
                   </div>
                   <ChevronUp className="h-4 w-4 shrink-0" />
@@ -299,7 +306,7 @@ export default function DashboardLayout({
           <div className="flex-1" />
           <div
             data-tour="header-actions"
-            className="flex shrink-0 items-center gap-1 sm:gap-2"
+            className="flex h-9 shrink-0 items-center gap-1 sm:gap-1.5"
           >
           <ThemeSwitcher />
           <DropdownMenu>
@@ -369,11 +376,6 @@ export default function DashboardLayout({
         </ScrollAreaHints>
       </SidebarInset>
     </SidebarProvider>
-      <DashboardProductTour
-        open={showDashboardTour}
-        userName={user?.name}
-        onComplete={completeDashboardTour}
-      />
       <AiAssistantPanel />
     </AiAssistantProvider>
   )
