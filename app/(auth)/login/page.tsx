@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { AuthFormShell } from '@/components/auth/auth-form-shell'
 import { useAuthStore } from '@/lib/store/auth-store'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
 
@@ -40,13 +41,14 @@ export default function LoginPage() {
   }
 
   return (
+    <AuthFormShell>
     <Card className="w-full max-w-md border-border/50 shadow-lg">
-      <CardHeader className="space-y-1 text-center">
-        <CardTitle className="text-2xl font-bold">Bem-vindo de volta</CardTitle>
-        <CardDescription>Entre com sua conta para acessar o ClariFI</CardDescription>
+      <CardHeader className="space-y-1 px-6 pb-3 pt-6 text-center">
+        <CardTitle className="text-xl font-bold sm:text-2xl">Bem-vindo de volta</CardTitle>
+        <CardDescription className="text-sm">Entre com sua conta para acessar o ClariFI</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 px-6">
           {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
           <div className="space-y-2">
@@ -107,7 +109,7 @@ export default function LoginPage() {
             </Label>
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-4">
+        <CardFooter className="flex flex-col gap-3 px-6 pb-6 pt-2">
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>
@@ -127,5 +129,6 @@ export default function LoginPage() {
         </CardFooter>
       </form>
     </Card>
+    </AuthFormShell>
   )
 }

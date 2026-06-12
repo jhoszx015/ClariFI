@@ -30,7 +30,4 @@ export function readStoredTheme(): Theme {
   return 'system'
 }
 
-/** Script bloqueante no `<head>` — evita flash e não passa pelo React 19. */
-export function getThemeInitScript(): string {
-  return `(function(){try{var k=${JSON.stringify(CLARIFI_THEME_STORAGE_KEY)};var t=localStorage.getItem(k)||'system';var r=t==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;var d=document.documentElement;if(r==='dark'){d.classList.add('dark')}else{d.classList.remove('dark')}d.style.colorScheme=r}catch(e){}})();`
-}
+/** Tema inicial: ver `public/theme-init.js` (carregado via `next/script` no layout). */

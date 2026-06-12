@@ -197,18 +197,25 @@ export const useFinanceStore = create<FinanceState>()(
           return
         }
 
-        set({
-          ...createEmptyFinanceDataFields(),
-          dashboardSummary: calculateDashboardSummary([]),
-          activeUserId: userId,
-          financeHydrated: false,
-        })
+        const switchingUser = userId !== state.activeUserId
+        if (switchingUser) {
+          set({
+            ...createEmptyFinanceDataFields(),
+            dashboardSummary: calculateDashboardSummary([]),
+            activeUserId: userId,
+            financeHydrated: false,
+          })
+          migrateLegacyGlobalFinanceStorage(userId)
+        }
 
-        migrateLegacyGlobalFinanceStorage(userId)
-        await useFinanceStore.persist.rehydrate()
-
-        setFinancePersistWritesEnabled(true)
-        set({ financeHydrated: true, activeUserId: userId })
+        try {
+          await useFinanceStore.persist.rehydrate()
+        } catch (error) {
+          console.error('[ClariFI] Falha ao carregar dados financeiros:', error)
+        } finally {
+          setFinancePersistWritesEnabled(true)
+          set({ financeHydrated: true, activeUserId: userId })
+        }
       },
       creditCardLimit: 5000,
       expectedMonthlyIncome: 0,

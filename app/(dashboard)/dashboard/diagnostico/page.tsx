@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { useNeedsMandatoryDiagnostic } from '@/components/clarifi/diagnostic-gate'
 import { useAuthStore } from '@/lib/store/auth-store'
 import { DashboardPanelBack } from '@/components/clarifi/dashboard-panel-back'
 import { diagnosisQuestions } from '@/lib/data/mock-data'
@@ -32,11 +34,20 @@ import {
 const profileDescriptions = BEHAVIORAL_PROFILES
 
 export default function DiagnosisPage() {
+  const router = useRouter()
   const { user, updateProfile } = useAuthStore()
+  const needsMandatoryDiagnostic = useNeedsMandatoryDiagnostic()
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<number[]>([])
   const [showResults, setShowResults] = useState(user?.behavioralProfile !== undefined)
-  const [isStarted, setIsStarted] = useState(false)
+  const [isStarted, setIsStarted] = useState(needsMandatoryDiagnostic)
+
+  useEffect(() => {
+    if (needsMandatoryDiagnostic) {
+      setIsStarted(true)
+      setShowResults(false)
+    }
+  }, [needsMandatoryDiagnostic])
 
   const handleAnswer = (optionIndex: number) => {
     const newAnswers = [...answers]
@@ -117,6 +128,10 @@ export default function DiagnosisPage() {
 
   const handleFinish = () => {
     const profile = calculateProfile()
+    if (needsMandatoryDiagnostic) {
+      updateProfile(profile, { showReveal: true })
+      return
+    }
     updateProfile(profile)
     setShowResults(true)
   }
@@ -146,8 +161,8 @@ export default function DiagnosisPage() {
   // Show results if user has a profile
   if (showResults && profile && profileInfo) {
     return (
-      <div className="space-y-6">
-        <DashboardPanelBack />
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-8">
+        {!needsMandatoryDiagnostic && <DashboardPanelBack />}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground md:text-3xl">
@@ -157,10 +172,18 @@ export default function DiagnosisPage() {
               Resultado do diagnóstico comportamental
             </p>
           </div>
-          <Button variant="outline" onClick={handleRestart} className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Refazer diagnóstico
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button className="gap-2" onClick={() => router.push('/dashboard')}>
+              Acessar painel
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            {!needsMandatoryDiagnostic && (
+              <Button variant="outline" onClick={handleRestart} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Refazer diagnóstico
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -348,7 +371,7 @@ export default function DiagnosisPage() {
   // Show intro screen
   if (!isStarted) {
     return (
-      <div className="space-y-6">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-8">
         <DashboardPanelBack />
         <div>
           <h1 className="text-2xl font-bold text-foreground md:text-3xl">
@@ -400,9 +423,14 @@ export default function DiagnosisPage() {
 
   // Show questionnaire
   return (
-    <div className="space-y-6">
-      <DashboardPanelBack />
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-8">
+      {!needsMandatoryDiagnostic && <DashboardPanelBack />}
       <div>
+        {needsMandatoryDiagnostic && (
+          <p className="mb-2 text-sm font-medium text-primary">
+            Passo obrigatório para usar o ClariFI
+          </p>
+        )}
         <h1 className="text-2xl font-bold text-foreground md:text-3xl">
           Diagnóstico comportamental
         </h1>

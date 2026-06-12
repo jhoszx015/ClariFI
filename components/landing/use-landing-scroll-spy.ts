@@ -9,16 +9,23 @@ const SECTION_IDS: Exclude<LandingNavSectionId, 'inicio'>[] = ['recursos', 'como
 /** Margem extra além do scroll-padding (âncoras, scroll-mt-24 nas seções, subpixel). */
 const INTERSECT_LINE_EXTRA_PX = 48
 
-function getIntersectLinePx(): number {
-  if (typeof document === 'undefined') return 72 + INTERSECT_LINE_EXTRA_PX
+function getScrollPaddingTopPx(): number {
+  if (typeof document === 'undefined') return 72
   const raw = Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop)
-  const base = Number.isFinite(raw) ? raw : 72
-  return base + INTERSECT_LINE_EXTRA_PX
+  return Number.isFinite(raw) ? raw : 72
+}
+
+function getIntersectLinePx(): number {
+  return getScrollPaddingTopPx() + INTERSECT_LINE_EXTRA_PX
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 /**
- * Secção ativa: última âncora cuja borda superior já passou da linha de ativação
- * (alinhada ao scroll-padding global + folga). Sem depender só de window.scrollY.
+ * Secção ativa: última âncora cuja borda superior já passou da linha de ativação.
  */
 function resolveActiveSection(): LandingNavSectionId {
   const line = getIntersectLinePx()
@@ -75,13 +82,43 @@ export function useLandingScrollSpy(enabled: boolean) {
   return active
 }
 
+export const LANDING_NAV_PIN_EVENT = 'clarifi:landing-nav-pin'
+
+export function emitLandingNavPin(id: LandingNavSectionId) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(LANDING_NAV_PIN_EVENT, { detail: id }))
+}
+
 export function scrollToLandingTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  emitLandingNavPin('inicio')
+  const behavior = prefersReducedMotion() ? 'auto' : 'smooth'
+  window.scrollTo({ top: 0, behavior })
+  if (window.location.hash) {
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  }
 }
 
 export function scrollToLandingSection(id: Exclude<LandingNavSectionId, 'inicio'>) {
+  emitLandingNavPin(id)
   const el = document.getElementById(id)
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  if (!el) return
+
+  const padding = getScrollPaddingTopPx()
+  const top = el.getBoundingClientRect().top + window.scrollY - padding
+  const behavior = prefersReducedMotion() ? 'auto' : 'smooth'
+
+  window.scrollTo({ top: Math.max(0, top), behavior })
+
+  const nextHash = `#${id}`
+  if (window.location.hash !== nextHash) {
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`)
   }
+}
+
+export function handleLandingHashLink(
+  e: React.MouseEvent<HTMLAnchorElement>,
+  id: Exclude<LandingNavSectionId, 'inicio'>,
+) {
+  e.preventDefault()
+  scrollToLandingSection(id)
 }

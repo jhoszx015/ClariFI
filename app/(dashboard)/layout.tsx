@@ -8,7 +8,6 @@ import { useFinanceStore } from '@/lib/store/finance-store'
 import {
   SidebarProvider,
   Sidebar,
-  SidebarContent,
   SidebarHeader,
   SidebarFooter,
   SidebarMenu,
@@ -20,6 +19,10 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import { SidebarNavScroll } from '@/components/clarifi/sidebar-nav-scroll'
+import { ScrollAreaHints } from '@/components/clarifi/scroll-area-hints'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
 import { UserAvatar } from '@/components/profile/user-avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,7 +36,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { ThemeSwitcher } from '@/components/theme-switcher'
 import { Wallet, User, LogOut, Bell, ChevronUp } from 'lucide-react'
-import { OnboardingGate } from '@/components/clarifi/onboarding-gate'
+import { Spinner } from '@/components/ui/spinner'
+import { WelcomeOnboarding } from '@/components/clarifi/welcome-onboarding'
+import { DashboardProductTour } from '@/components/clarifi/dashboard-product-tour'
+import { ProfileRevealScreen } from '@/components/clarifi/profile-reveal-screen'
 import { AiAssistantProvider, useAiAssistant } from '@/components/clarifi/ai-assistant-context'
 import { AiAssistantPanel } from '@/components/clarifi/ai-assistant-panel'
 import { DASHBOARD_SIDEBAR_MENU, type SidebarNavItemDef } from '@/lib/nav/dashboard-sidebar-menu'
@@ -47,6 +53,14 @@ const NAV_SECTION_LABEL: Record<string, string> = {
 }
 
 const menuItems = DASHBOARD_SIDEBAR_MENU
+
+function DashboardShellLoading() {
+  return (
+    <div className="flex min-h-svh items-center justify-center bg-background/90">
+      <Spinner className="size-8 text-primary" />
+    </div>
+  )
+}
 
 function navItemIsActive(pathname: string, href: string) {
   if (href === '/dashboard') {
@@ -98,11 +112,24 @@ export default function DashboardLayout({
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const hasHydrated = useAuthStore((state) => state.hasHydrated)
   const logout = useAuthStore((state) => state.logout)
+  const completeWelcomeTour = useAuthStore((state) => state.completeWelcomeTour)
+  const completeDashboardTour = useAuthStore((state) => state.completeDashboardTour)
+  const pendingProfileReveal = useAuthStore((state) => state.pendingProfileReveal)
+  const dismissProfileReveal = useAuthStore((state) => state.dismissProfileReveal)
   const financeHydrated = useFinanceStore((state) => state.financeHydrated)
   const alerts = useFinanceStore((state) => state.alerts)
   const markAlertAsRead = useFinanceStore((state) => state.markAlertAsRead)
 
   const unreadAlerts = useMemo(() => alerts.filter((a) => !a.isRead).length, [alerts])
+  const showWelcome = Boolean(user && user.onboardingCompleted !== true)
+  const showDashboardTour =
+    Boolean(
+      user &&
+        user.onboardingCompleted === true &&
+        user.dashboardTourCompleted !== true &&
+        (pathname === '/dashboard' || pathname === '/dashboard/'),
+    )
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (hasHydrated && !isAuthenticated) {
@@ -111,12 +138,52 @@ export default function DashboardLayout({
   }, [hasHydrated, isAuthenticated, router])
 
   useEffect(() => {
-    if (!hasHydrated || !isAuthenticated || !user?.id) return
+    if (!hasHydrated || !isAuthenticated || !user) return
     void useFinanceStore.getState().bindToUser(user.id)
   }, [hasHydrated, isAuthenticated, user?.id])
 
-  if (!hasHydrated || !isAuthenticated || !financeHydrated) {
-    return null
+  useEffect(() => {
+    document.documentElement.classList.add('dashboard-shell')
+    return () => {
+      document.documentElement.classList.remove('dashboard-shell')
+    }
+  }, [])
+
+  if (!hasHydrated || !isAuthenticated || !user) {
+    return <DashboardShellLoading />
+  }
+
+  if (showWelcome) {
+    return (
+      <AiAssistantProvider>
+        <WelcomeOnboarding
+          userName={user.name}
+          onComplete={() => {
+            completeWelcomeTour()
+            router.replace('/dashboard')
+          }}
+        />
+      </AiAssistantProvider>
+    )
+  }
+
+  if (pendingProfileReveal && user.behavioralProfile) {
+    return (
+      <AiAssistantProvider>
+        <ProfileRevealScreen
+          profile={user.behavioralProfile}
+          userName={user.name}
+          onContinue={() => {
+            dismissProfileReveal()
+            router.replace('/dashboard')
+          }}
+        />
+      </AiAssistantProvider>
+    )
+  }
+
+  if (!financeHydrated) {
+    return <DashboardShellLoading />
   }
 
   const handleLogout = () => {
@@ -124,94 +191,116 @@ export default function DashboardLayout({
     router.push('/')
   }
 
+  const sidebarNav = (
+    <>
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link href="/dashboard">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                  <Wallet className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div className="flex flex-col gap-0.5 leading-none">
+                  <span className="font-semibold">ClariFI</span>
+                  <span className="text-xs text-muted-foreground">Gestão inteligente</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      <SidebarNavScroll>
+        {menuItems.map((group) => (
+          <SidebarGroup key={group.id}>
+            <SidebarGroupLabel>
+              <span className="block w-full whitespace-normal text-[13px] leading-tight">
+                {NAV_SECTION_LABEL[group.id] ?? group.title}
+              </span>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarNavItem key={item.href} item={item} pathname={pathname} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarNavScroll>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg">
+                  <UserAvatar
+                    user={user}
+                    className="h-8 w-8 shrink-0"
+                    fallbackClassName="bg-primary/10 text-xs text-primary"
+                  />
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-none">
+                    <span className="truncate font-medium">{user.name || 'Usuário'}</span>
+                    <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                  </div>
+                  <ChevronUp className="h-4 w-4 shrink-0" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                className="w-[--radix-popper-anchor-width]"
+              >
+                <DropdownMenuLabel>Minha conta</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/perfil">
+                    <User className="mr-2 h-4 w-4" />
+                    Perfil
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </>
+  )
+
   return (
     <AiAssistantProvider>
-    <SidebarProvider>
-      <OnboardingGate />
-      <Sidebar variant="inset">
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <Link href="/dashboard">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                    <Wallet className="h-4 w-4 text-primary-foreground" />
-                  </div>
-                  <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-semibold">ClariFI</span>
-                    <span className="text-xs text-muted-foreground">Gestão inteligente</span>
-                  </div>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
-
-        <SidebarContent>
-          {menuItems.map((group) => (
-            <SidebarGroup key={group.id}>
-              <SidebarGroupLabel>
-                <span className="block w-full whitespace-normal text-[13px] leading-tight">
-                  {NAV_SECTION_LABEL[group.id] ?? group.title}
-                </span>
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items.map((item) => (
-                    <SidebarNavItem key={item.href} item={item} pathname={pathname} />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
-        </SidebarContent>
-
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton size="lg">
-                    <UserAvatar
-                      user={user}
-                      className="h-8 w-8"
-                      fallbackClassName="bg-primary/10 text-xs text-primary"
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-none">
-                      <span className="truncate font-medium">{user?.name || 'Usuário'}</span>
-                    </div>
-                    <ChevronUp className="h-4 w-4" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="top"
-                  className="w-[--radix-popper-anchor-width]"
-                >
-                  <DropdownMenuLabel>Minha conta</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard/perfil">
-                      <User className="mr-2 h-4 w-4" />
-                      Perfil
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sair
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
+    <SidebarProvider className="dashboard-app-shell flex h-svh min-h-0 w-full flex-row gap-3 p-3">
+      <Sidebar
+        variant="inset"
+        collapsible={isMobile ? 'offcanvas' : 'none'}
+        className={cn(
+          !isMobile &&
+            'h-full min-h-0 shrink-0 overflow-hidden rounded-xl border border-border bg-sidebar shadow-none',
+        )}
+        data-tour="sidebar-nav"
+      >
+        {sidebarNav}
       </Sidebar>
 
-      <SidebarInset>
-        {/* Top Bar */}
-        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/40 bg-background/80 px-3 backdrop-blur-lg sm:gap-4 sm:px-4">
-          <SidebarTrigger />
+      <SidebarInset
+        className={cn(
+          'relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-background',
+          'md:!m-0 md:!shadow-none',
+        )}
+      >
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background px-3 sm:gap-4 sm:px-4">
+          <SidebarTrigger className="md:hidden" />
           <div className="flex-1" />
+          <div
+            data-tour="header-actions"
+            className="flex shrink-0 items-center gap-1 sm:gap-2"
+          >
           <ThemeSwitcher />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -267,13 +356,25 @@ export default function DashboardLayout({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </header>
 
-        {/* Conteúdo (evita <main> aninhado: SidebarInset já é um main) */}
-        <div className="flex-1 p-4 md:p-6">{children}</div>
+        <ScrollAreaHints
+          className="min-h-0 flex-1"
+          fadeClassName="from-background"
+          srHint="Role para cima ou para baixo para ver mais da página."
+          scrollClassName="p-4 pb-10 md:p-6 md:pb-12"
+        >
+          {children}
+        </ScrollAreaHints>
       </SidebarInset>
     </SidebarProvider>
-    <AiAssistantPanel />
+      <DashboardProductTour
+        open={showDashboardTour}
+        userName={user?.name}
+        onComplete={completeDashboardTour}
+      />
+      <AiAssistantPanel />
     </AiAssistantProvider>
   )
 }

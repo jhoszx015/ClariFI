@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { IntroSplash } from '@/components/landing/intro-splash'
 import {
+  handleLandingHashLink,
+  scrollToLandingSection,
+} from '@/components/landing/use-landing-scroll-spy'
+import {
   RevealOnScroll,
   RevealOnScrollLi,
   RevealStagger,
@@ -57,10 +61,10 @@ export function LandingPageView() {
   useEffect(() => {
     const raw = window.location.hash.replace(/^#/, '')
     if (!raw) return
-    const allowed = ['recursos', 'como-funciona', 'depoimentos']
-    if (!allowed.includes(raw)) return
+    const allowed = ['recursos', 'como-funciona', 'depoimentos'] as const
+    if (!allowed.includes(raw as (typeof allowed)[number])) return
     const raf = requestAnimationFrame(() => {
-      document.getElementById(raw)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      scrollToLandingSection(raw as (typeof allowed)[number])
     })
     return () => cancelAnimationFrame(raf)
   }, [])
@@ -81,7 +85,7 @@ export function LandingPageView() {
       {introBlocking ? <IntroSplash onComplete={handleIntroComplete} /> : null}
 
       <m.div
-        className="min-h-screen bg-background"
+        className="min-h-screen bg-transparent"
         initial={false}
         animate={{
           opacity: introBlocking ? 0 : 1,
@@ -92,8 +96,7 @@ export function LandingPageView() {
       >
         <LandingHeader />
 
-        <section className="relative overflow-hidden">
-          <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background" />
+        <section className="relative">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8 lg:py-32">
             <RevealStagger className="mx-auto max-w-3xl text-center">
               <RevealStaggerItem>
@@ -108,13 +111,6 @@ export function LandingPageView() {
                 </h1>
               </RevealStaggerItem>
               <RevealStaggerItem>
-                <p className="mt-6 text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl">
-                  Ajudamos brasileiros a sair do descontrole financeiro: não é só planilha — é mudança de hábitos.
-                  Enquanto outros apps mostram números, o ClariFI atua na raiz: impulsividade, disciplina e padrões
-                  invisíveis.
-                </p>
-              </RevealStaggerItem>
-              <RevealStaggerItem>
                 <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                   <m.div whileHover={pressableHover} whileTap={pressableTap} className="w-full sm:w-auto">
                     <Link href="/cadastro" className="block w-full sm:inline-block">
@@ -125,15 +121,20 @@ export function LandingPageView() {
                     </Link>
                   </m.div>
                   <m.div whileHover={pressableHover} whileTap={pressableTap} className="w-full sm:w-auto">
-                    <Link href="#como-funciona" className="block w-full sm:inline-block">
+                    <a
+                      href="#como-funciona"
+                      className="block w-full sm:inline-block"
+                      onClick={(e) => handleLandingHashLink(e, 'como-funciona')}
+                    >
                       <Button
                         variant="outline"
                         size="lg"
                         className="w-full transition-colors duration-200 sm:w-auto"
+                        type="button"
                       >
                         Ver demonstração
                       </Button>
-                    </Link>
+                    </a>
                   </m.div>
                 </div>
               </RevealStaggerItem>
@@ -141,14 +142,14 @@ export function LandingPageView() {
           </div>
         </section>
 
-        <section className="border-y border-border/40 bg-muted/30">
+        <section className="border-y border-border/30 bg-muted/20">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
               {[
-                { value: 'Grátis', label: 'Para começar, sem cartão' },
-                { value: '5 min', label: 'Para ter seu diagnóstico financeiro' },
-                { value: '100%', label: 'Dados privados, só seus' },
-                { value: 'Open', label: 'Sem assinatura obrigatória no início' },
+                { value: 'Simples', label: 'Organize suas finanças sem planilha nem complicação' },
+                { value: '2 min', label: 'Conta pronta e painel no ar em poucos passos' },
+                { value: 'Rápido', label: 'Registre, acompanhe e decida sem perder tempo' },
+                { value: 'Inteligente', label: 'IA e coach que traduzem números em ação' },
               ].map((stat, i) => (
                 <RevealOnScroll key={stat.label} delay={i * 0.06} className="text-center">
                   <div className="text-3xl font-bold text-primary sm:text-4xl">{stat.value}</div>
@@ -202,7 +203,7 @@ export function LandingPageView() {
           </div>
         </section>
 
-        <section id="recursos" className="scroll-mt-24 bg-muted/30 py-20">
+        <section id="recursos" className="scroll-mt-24 bg-muted/20 py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <RevealOnScroll className="mx-auto max-w-2xl text-center">
               <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
@@ -320,7 +321,7 @@ export function LandingPageView() {
           </div>
         </section>
 
-        <section id="depoimentos" className="scroll-mt-24 bg-muted/30 py-20">
+        <section id="depoimentos" className="scroll-mt-24 bg-muted/20 py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <RevealOnScroll className="mx-auto max-w-2xl text-center">
               <h2 className="text-3xl font-bold text-foreground sm:text-4xl">O que nossos usuários dizem</h2>
@@ -407,7 +408,7 @@ export function LandingPageView() {
           </RevealOnScroll>
         </section>
 
-        <footer className="border-t border-border/40 bg-muted/30">
+        <footer className="border-t border-border/30 bg-muted/20">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
             <RevealOnScroll>
               <div className="grid gap-8 md:grid-cols-4">
@@ -427,19 +428,22 @@ export function LandingPageView() {
                   <h3 className="font-semibold text-foreground">Produto</h3>
                   <ul className="mt-4 space-y-2">
                     <li>
-                      <a href="#recursos" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+                      <a
+                        href="#recursos"
+                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                        onClick={(e) => handleLandingHashLink(e, 'recursos')}
+                      >
                         Recursos
                       </a>
                     </li>
                     <li>
-                      <a href="#como-funciona" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+                      <a
+                        href="#como-funciona"
+                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                        onClick={(e) => handleLandingHashLink(e, 'como-funciona')}
+                      >
                         Como Funciona
                       </a>
-                    </li>
-                    <li>
-                      <Link href="/precos" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-                        Preços
-                      </Link>
                     </li>
                     <li>
                       <Link href="/login" className="text-sm text-muted-foreground transition-colors hover:text-foreground">

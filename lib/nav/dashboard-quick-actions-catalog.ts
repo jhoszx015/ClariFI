@@ -89,5 +89,11 @@ export const DEFAULT_QUICK_ACTION_IDS: [string, string, string, string] = [
   'nav:/dashboard/cartao',
 ]
 
+/** Chave legada (global); migrada para chave por usuário. */
 export const QUICK_ACTIONS_STORAGE_KEY = 'clarifi.dashboard.quickActions.v1'
+
+export function getQuickActionsStorageKey(userId: string): string {
+  return `${QUICK_ACTIONS_STORAGE_KEY}:${userId}`
+}
+
 export const QUICK_ACTIONS_COUNT = 4 as const

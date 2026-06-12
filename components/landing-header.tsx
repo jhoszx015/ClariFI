@@ -33,7 +33,26 @@ import {
   useLandingScrollSpy,
   scrollToLandingTop,
   scrollToLandingSection,
+  LANDING_NAV_PIN_EVENT,
 } from '@/components/landing/use-landing-scroll-spy'
+
+const NAV_ORDER: LandingNavSectionId[] = ['inicio', 'recursos', 'como-funciona', 'depoimentos']
+const NAV_STEP_MS = 88
+
+function getNavAnimationPath(from: LandingNavSectionId, to: LandingNavSectionId): LandingNavSectionId[] {
+  const fromIdx = NAV_ORDER.indexOf(from)
+  const toIdx = NAV_ORDER.indexOf(to)
+  if (fromIdx < 0 || toIdx < 0) return [to]
+  if (fromIdx === toIdx) return [to]
+
+  const path: LandingNavSectionId[] = []
+  const step = fromIdx < toIdx ? 1 : -1
+  for (let i = fromIdx + step; ; i += step) {
+    path.push(NAV_ORDER[i])
+    if (i === toIdx) break
+  }
+  return path
+}
 
 const NAV_ITEMS: {
   id: LandingNavSectionId
@@ -77,30 +96,104 @@ export function LandingHeader() {
   const isHome = pathname === '/'
 
   const scrollSpyId = useLandingScrollSpy(isHome)
-  const [pendingNavId, setPendingNavId] = React.useState<LandingNavSectionId | null>(null)
+  const [navOverrideId, setNavOverrideId] = React.useState<LandingNavSectionId | null>(null)
+  const [isNavAnimating, setIsNavAnimating] = React.useState(false)
+  const programmaticScrollRef = React.useRef(false)
+  const programmaticScrollTimerRef = React.useRef<number | null>(null)
+  const navAnimTimersRef = React.useRef<number[]>([])
+  const animTargetRef = React.useRef<LandingNavSectionId | null>(null)
+  const activeNavIdRef = React.useRef<LandingNavSectionId>('inicio')
 
-  React.useEffect(() => {
-    setPendingNavId(null)
-  }, [pathname])
+  const clearNavAnimation = React.useCallback(() => {
+    navAnimTimersRef.current.forEach((id) => window.clearTimeout(id))
+    navAnimTimersRef.current = []
+    setIsNavAnimating(false)
+  }, [])
 
-  React.useEffect(() => {
-    if (!isHome || !pendingNavId) return
-    if (pendingNavId && scrollSpyId === pendingNavId) {
-      setPendingNavId(null)
+  const beginProgrammaticScroll = React.useCallback(() => {
+    programmaticScrollRef.current = true
+    if (programmaticScrollTimerRef.current !== null) {
+      window.clearTimeout(programmaticScrollTimerRef.current)
     }
-  }, [isHome, pendingNavId, scrollSpyId])
+    programmaticScrollTimerRef.current = window.setTimeout(() => {
+      programmaticScrollRef.current = false
+      programmaticScrollTimerRef.current = null
+    }, 1200)
+  }, [])
 
-  const activeNavId: LandingNavSectionId | null = isHome ? pendingNavId ?? scrollSpyId : null
+  const animateNavTo = React.useCallback(
+    (targetId: LandingNavSectionId) => {
+      clearNavAnimation()
+      beginProgrammaticScroll()
+
+      const fromId = activeNavIdRef.current
+      const path = getNavAnimationPath(fromId, targetId)
+      animTargetRef.current = targetId
+      setIsNavAnimating(true)
+
+      path.forEach((id, index) => {
+        const timer = window.setTimeout(() => {
+          setNavOverrideId(id)
+        }, index * NAV_STEP_MS)
+        navAnimTimersRef.current.push(timer)
+      })
+
+      const finishTimer = window.setTimeout(() => {
+        setNavOverrideId(targetId)
+        setIsNavAnimating(false)
+      }, Math.max(0, (path.length - 1) * NAV_STEP_MS + NAV_STEP_MS * 0.6))
+      navAnimTimersRef.current.push(finishTimer)
+    },
+    [beginProgrammaticScroll, clearNavAnimation],
+  )
+
+  React.useEffect(() => {
+    const onPin = (event: Event) => {
+      const id = (event as CustomEvent<LandingNavSectionId>).detail
+      if (id) animateNavTo(id)
+    }
+
+    window.addEventListener(LANDING_NAV_PIN_EVENT, onPin)
+    return () => window.removeEventListener(LANDING_NAV_PIN_EVENT, onPin)
+  }, [animateNavTo])
+
+  React.useEffect(() => {
+    if (!animTargetRef.current) return
+    if (scrollSpyId === animTargetRef.current) {
+      animTargetRef.current = null
+      setNavOverrideId(null)
+      clearNavAnimation()
+    }
+  }, [scrollSpyId, clearNavAnimation])
+
+  React.useEffect(() => {
+    const releaseOnUserScroll = () => {
+      if (programmaticScrollRef.current) return
+      animTargetRef.current = null
+      setNavOverrideId(null)
+      clearNavAnimation()
+    }
+
+    window.addEventListener('wheel', releaseOnUserScroll, { passive: true })
+    window.addEventListener('touchmove', releaseOnUserScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener('wheel', releaseOnUserScroll)
+      window.removeEventListener('touchmove', releaseOnUserScroll)
+      if (programmaticScrollTimerRef.current !== null) {
+        window.clearTimeout(programmaticScrollTimerRef.current)
+      }
+      clearNavAnimation()
+    }
+  }, [clearNavAnimation])
+
+  const activeNavId: LandingNavSectionId | null = isHome ? (navOverrideId ?? scrollSpyId) : null
+  activeNavIdRef.current = activeNavId ?? 'inicio'
   const showIndicator = activeNavId !== null && isHome
 
   const navRowRef = React.useRef<HTMLDivElement>(null)
   const labelRefs = React.useRef<Partial<Record<LandingNavSectionId, HTMLElement | null>>>({})
   const [indicator, setIndicator] = React.useState({ x: 0, w: 0 })
-
-  const acknowledgeNavTap = React.useCallback((id: LandingNavSectionId) => {
-    if (!isHome) return
-    setPendingNavId(id)
-  }, [isHome])
 
   const measureIndicator = React.useCallback(() => {
     if (!showIndicator || !navRowRef.current || !activeNavId) {
@@ -161,18 +254,19 @@ export function LandingHeader() {
     hash: 'recursos' | 'como-funciona' | 'depoimentos',
     closeMobile?: boolean,
   ) => {
-    acknowledgeNavTap(navId)
     if (isHome) {
       scrollToLandingSection(hash)
+    } else {
+      animateNavTo(navId)
     }
     if (closeMobile) setOpen(false)
   }
 
   const handleInicio = (closeMobile?: boolean) => {
-    acknowledgeNavTap('inicio')
     if (isHome) {
       scrollToLandingTop()
     } else {
+      animateNavTo('inicio')
       router.push('/')
     }
     if (closeMobile) setOpen(false)
@@ -299,7 +393,7 @@ export function LandingHeader() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-border/40 bg-background/85 backdrop-blur-lg supports-[backdrop-filter]:bg-background/70">
+    <nav className="sticky top-0 z-50 border-b border-border/15 bg-background/10 backdrop-blur-sm supports-[backdrop-filter]:bg-background/[0.07]">
       <div className="relative mx-auto flex h-16 max-w-7xl items-center px-4 sm:px-6 lg:px-8">
         <Link href="/" className="relative z-10 flex min-w-0 shrink-0 items-center gap-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary shadow-sm">
@@ -322,8 +416,9 @@ export function LandingHeader() {
                   width: Math.max(indicator.w, 1),
                   transform: `translate3d(${indicator.x}px, 0, 0)`,
                   opacity: indicator.w > 0 ? 1 : 0,
-                  transition:
-                    'transform 340ms cubic-bezier(0.42, 0, 0.58, 1), width 340ms cubic-bezier(0.42, 0, 0.58, 1), opacity 140ms ease-out',
+                  transition: isNavAnimating
+                    ? `transform ${NAV_STEP_MS - 12}ms cubic-bezier(0.45, 0, 0.55, 1), width ${NAV_STEP_MS - 12}ms cubic-bezier(0.45, 0, 0.55, 1), opacity 100ms ease-out`
+                    : 'transform 200ms cubic-bezier(0.42, 0, 0.58, 1), width 200ms cubic-bezier(0.42, 0, 0.58, 1), opacity 120ms ease-out',
                   willChange: 'transform, width',
                 }}
               />

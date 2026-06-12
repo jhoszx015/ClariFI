@@ -2,11 +2,13 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User, BehavioralProfile, ProfileType } from '@/types'
 import { bindFinanceStoreToUser } from '@/lib/store/finance-auth-sync'
+import { purgeAllLocalDataForClosedAccount } from '@/lib/store/purge-closed-account-data'
 import {
   hashPassword,
   SEED_DEMO_PASSWORD_HASH,
   verifyStoredPassword,
 } from '@/lib/auth/password-hash'
+import { isStrongPassword } from '@/lib/auth/password-rules'
 
 const LEGACY_PROFILE_MAP: Record<string, ProfileType> = {
   planejador: 'poupador',
@@ -37,6 +39,7 @@ type StoredUserRow = {
   avatar?: string
   subscriptionStatus?: 'free' | 'premium'
   onboardingCompleted?: boolean
+  dashboardTourCompleted?: boolean
   onboardingMethod?: 'bank' | 'manual'
   behavioralProfile?: BehavioralProfile
   profileHistory?: Array<{ profile: BehavioralProfile; date: Date }>
@@ -48,20 +51,27 @@ interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
   hasHydrated: boolean
+  /** Tela cheia de revelação do perfil após o primeiro diagnóstico obrigatório. */
+  pendingProfileReveal: boolean
   login: (email: string, password: string) => Promise<boolean>
   register: (
     name: string,
     email: string,
     password: string,
-  ) => Promise<{ ok: true } | { ok: false; reason: 'email_exists' }>
+  ) => Promise<{ ok: true } | { ok: false; reason: 'email_exists' | 'weak_password' }>
   logout: () => void
-  updateProfile: (profile: BehavioralProfile) => void
+  /** Encerra a conta atual: remove credenciais e todos os dados locais deste usuário. */
+  closeAccount: () => Promise<void>
+  updateProfile: (profile: BehavioralProfile, options?: { showReveal?: boolean }) => void
+  dismissProfileReveal: () => void
   updateUserInfo: (info: { name?: string; email?: string }) => void
   setHydrated: (value: boolean) => void
   /** Simula assinatura ativa (integração real substitui por checkout). */
   setSubscriptionStatus: (status: 'free' | 'premium') => void
-  /** Primeiro acesso: após escolher conectar banco ou conta manual. */
-  completeOnboarding: (method: 'bank' | 'manual') => void
+  /** Primeiro acesso: tour de boas-vindas concluído. */
+  completeWelcomeTour: () => void
+  /** Tour do painel (somente após novo cadastro). */
+  completeDashboardTour: () => void
   /** Foto de perfil local (data URL nesta demo). `null` remove. */
   setUserAvatar: (dataUrl: string | null) => void
 }
@@ -75,6 +85,7 @@ const seedUsers: StoredUserRow[] = [
     createdAt: new Date('2024-01-15'),
     subscriptionStatus: 'free',
     onboardingCompleted: true,
+    dashboardTourCompleted: true,
     onboardingMethod: 'manual',
   },
 ]
@@ -88,9 +99,12 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       hasHydrated: false,
+      pendingProfileReveal: false,
       setHydrated: (value) => set({ hasHydrated: value }),
+      dismissProfileReveal: () => set({ pendingProfileReveal: false }),
 
       login: async (email: string, password: string) => {
+        await waitForAuthHydration()
         set({ isLoading: true })
 
         if (SIMULATED_AUTH_DELAY_MS > 0) {
@@ -109,6 +123,7 @@ export const useAuthStore = create<AuthState>()(
             ...base,
             subscriptionStatus: base.subscriptionStatus ?? user.subscriptionStatus ?? 'free',
             onboardingCompleted: user.onboardingCompleted ?? true,
+            dashboardTourCompleted: user.dashboardTourCompleted ?? true,
             onboardingMethod: user.onboardingMethod,
             avatar: base.avatar ?? user.avatar,
           }
@@ -126,7 +141,13 @@ export const useAuthStore = create<AuthState>()(
       },
 
       register: async (name: string, email: string, password: string) => {
+        await waitForAuthHydration()
         set({ isLoading: true })
+
+        if (!isStrongPassword(password)) {
+          set({ isLoading: false })
+          return { ok: false, reason: 'weak_password' }
+        }
 
         if (SIMULATED_AUTH_DELAY_MS > 0) {
           await new Promise((resolve) => setTimeout(resolve, SIMULATED_AUTH_DELAY_MS))
@@ -145,6 +166,7 @@ export const useAuthStore = create<AuthState>()(
             subscriptionStatus: existingUser.subscriptionStatus ?? 'free',
             createdAt: existingUser.createdAt,
             onboardingCompleted: existingUser.onboardingCompleted ?? false,
+            dashboardTourCompleted: existingUser.dashboardTourCompleted ?? false,
             onboardingMethod: existingUser.onboardingMethod,
             avatar: existingUser.avatar,
             behavioralProfile: existingUser.behavioralProfile,
@@ -161,6 +183,7 @@ export const useAuthStore = create<AuthState>()(
                     email: normalizedEmail,
                     passwordHash,
                     onboardingCompleted: u.onboardingCompleted ?? false,
+                    dashboardTourCompleted: false,
                   }
                 : u,
             ),
@@ -184,11 +207,12 @@ export const useAuthStore = create<AuthState>()(
           subscriptionStatus: 'free',
           createdAt: new Date(),
           onboardingCompleted: false,
+          dashboardTourCompleted: false,
         }
 
         set({
           user: newUser,
-          users: [...get().users, { ...newUser, passwordHash, onboardingCompleted: false }],
+          users: [...get().users, { ...newUser, passwordHash, onboardingCompleted: false, dashboardTourCompleted: false }],
           isAuthenticated: true,
           isLoading: false,
         })
@@ -202,10 +226,29 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           isAuthenticated: false,
+          pendingProfileReveal: false,
         })
       },
 
-      updateProfile: (profile: BehavioralProfile) => {
+      closeAccount: async () => {
+        const currentUser = get().user
+        if (!currentUser) return
+
+        const closedUserId = currentUser.id
+
+        purgeAllLocalDataForClosedAccount(closedUserId)
+
+        set({
+          user: null,
+          isAuthenticated: false,
+          pendingProfileReveal: false,
+          users: get().users.filter((u) => u.id !== closedUserId),
+        })
+
+        await bindFinanceStoreToUser(null)
+      },
+
+      updateProfile: (profile, options) => {
         const currentUser = get().user
         if (!currentUser) return
 
@@ -222,7 +265,19 @@ export const useAuthStore = create<AuthState>()(
           behavioralProfile: profile,
           profileHistory: history.slice(-12),
         }
-        set({ user: updated })
+        set({
+          user: updated,
+          pendingProfileReveal: options?.showReveal === true,
+          users: get().users.map((u) =>
+            u.id === currentUser.id
+              ? {
+                  ...u,
+                  behavioralProfile: profile,
+                  profileHistory: updated.profileHistory,
+                }
+              : u,
+          ),
+        })
       },
 
       updateUserInfo: (info) => {
@@ -250,18 +305,32 @@ export const useAuthStore = create<AuthState>()(
         })
       },
 
-      completeOnboarding: (method) => {
+      completeWelcomeTour: () => {
         const currentUser = get().user
         if (!currentUser) return
         const updated: User = {
           ...currentUser,
           onboardingCompleted: true,
-          onboardingMethod: method,
         }
         set({
           user: updated,
           users: get().users.map((u) =>
-            u.id === currentUser.id ? { ...u, onboardingCompleted: true, onboardingMethod: method } : u,
+            u.id === currentUser.id ? { ...u, onboardingCompleted: true } : u,
+          ),
+        })
+      },
+
+      completeDashboardTour: () => {
+        const currentUser = get().user
+        if (!currentUser) return
+        const updated: User = {
+          ...currentUser,
+          dashboardTourCompleted: true,
+        }
+        set({
+          user: updated,
+          users: get().users.map((u) =>
+            u.id === currentUser.id ? { ...u, dashboardTourCompleted: true } : u,
           ),
         })
       },
@@ -295,7 +364,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'clarifi-auth',
-      version: 5,
+      version: 6,
       migrate: (persisted, fromVersion) => {
         const p = persisted as {
           user?: User | null
@@ -339,6 +408,15 @@ export const useAuthStore = create<AuthState>()(
             p.user = { ...p.user, email: p.user.email.trim().toLowerCase() }
           }
         }
+        if (fromVersion < 6) {
+          p.users = p.users.map((u) => ({
+            ...u,
+            dashboardTourCompleted: u.dashboardTourCompleted ?? true,
+          }))
+          if (p.user && p.user.dashboardTourCompleted === undefined) {
+            p.user = { ...p.user, dashboardTourCompleted: true }
+          }
+        }
         return p as {
           user: User | null
           users: StoredUserRow[]
@@ -348,6 +426,30 @@ export const useAuthStore = create<AuthState>()(
       onRehydrateStorage: () => (state) => {
         if (!state) return
         queueMicrotask(() => {
+          const current = useAuthStore.getState()
+          if (current.user && current.users.length > 0) {
+            const row = current.users.find((u) => u.id === current.user!.id)
+            if (row && row.onboardingCompleted !== current.user.onboardingCompleted) {
+              useAuthStore.setState({
+                user: {
+                  ...current.user,
+                  onboardingCompleted: row.onboardingCompleted ?? false,
+                  dashboardTourCompleted:
+                    row.dashboardTourCompleted ?? current.user.dashboardTourCompleted ?? true,
+                },
+              })
+            } else if (
+              row &&
+              row.dashboardTourCompleted !== current.user.dashboardTourCompleted
+            ) {
+              useAuthStore.setState({
+                user: {
+                  ...current.user,
+                  dashboardTourCompleted: row.dashboardTourCompleted ?? true,
+                },
+              })
+            }
+          }
           state.setHydrated(true)
         })
       },
@@ -359,3 +461,16 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 )
+
+/** Aguarda o persist do auth antes de login/cadastro (evita rehydrate sobrescrever a sessão nova). */
+function waitForAuthHydration(): Promise<void> {
+  if (useAuthStore.persist.hasHydrated()) {
+    return Promise.resolve()
+  }
+  return new Promise((resolve) => {
+    const unsub = useAuthStore.persist.onFinishHydration(() => {
+      unsub()
+      resolve()
+    })
+  })
+}

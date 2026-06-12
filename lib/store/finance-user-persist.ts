@@ -43,7 +43,6 @@ export function migrateLegacyGlobalFinanceStorage(userId: string): void {
 export function removeFinanceStorageForUser(userId: string): void {
   if (typeof window === 'undefined') return
   localStorage.removeItem(getFinancePersistKey(userId))
-  localStorage.removeItem(LEGACY_FINANCE_KEY)
 }
 
 export function createPerUserFinanceStorage(): StateStorage {

@@ -105,7 +105,7 @@ export function DashboardChartsSection({
   }
 
   return (
-    <Card>
+    <Card data-tour="dashboard-charts">
       <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <CardTitle>Despesas por categoria</CardTitle>

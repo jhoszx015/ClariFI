@@ -9,7 +9,6 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { useFinanceStore } from '@/lib/store/finance-store'
 import { useAuthStore } from '@/lib/store/auth-store'
-import { BEHAVIORAL_PROFILES } from '@/lib/data/behavioral-profiles'
 import { categoryConfig } from '@/lib/data/mock-data'
 import { cn } from '@/lib/utils'
 import {
@@ -24,7 +23,6 @@ import {
   CheckCircle,
   Info,
   XCircle,
-  Brain,
 } from 'lucide-react'
 import { DashboardChartsSection } from '@/components/clarifi/dashboard-charts-section'
 
@@ -51,8 +49,6 @@ const alertStyles = {
 
 export default function DashboardPage() {
   const userName = useAuthStore((state) => state.user?.name)
-  const behavioralProfile = useAuthStore((state) => state.user?.behavioralProfile)
-  const profileMeta = behavioralProfile ? BEHAVIORAL_PROFILES[behavioralProfile.type] : null
   const transactions = useFinanceStore((state) => state.transactions)
   const goals = useFinanceStore((state) => state.goals)
   const alerts = useFinanceStore((state) => state.alerts)
@@ -220,33 +216,14 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-7">
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2" data-tour="dashboard-greeting">
         <h1 className="text-2xl font-bold text-foreground md:text-3xl">Olá, {firstName}!</h1>
         <p className="text-muted-foreground">Aqui está o essencial para decidir seu próximo passo hoje.</p>
       </div>
 
-      {profileMeta && (
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
-                <Brain className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Perfil {profileMeta.title}</CardTitle>
-                <CardDescription>Seu diagnóstico comportamental</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">{profileMeta.description}</p>
-          </CardContent>
-        </Card>
-      )}
-
       <DashboardQuickActions />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" data-tour="dashboard-summary">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Patrimônio total</CardTitle>
@@ -301,7 +278,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <Card className={insights.riskNegative ? 'border-destructive/40 bg-destructive/5' : 'border-border/60'}>
+      <Card className={insights.riskNegative ? 'border-destructive/40 bg-destructive/5' : 'border-border/60'} data-tour="dashboard-insights">
         <CardHeader>
           <CardTitle>Visão geral objetiva do mês</CardTitle>
           <CardDescription>Insights essenciais para decisão rápida</CardDescription>

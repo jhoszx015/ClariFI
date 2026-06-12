@@ -47,8 +47,10 @@ import {
   QUICK_ACTIONS_STORAGE_KEY,
   getDashboardQuickActionCatalog,
   getQuickActionById,
+  getQuickActionsStorageKey,
   type DashboardQuickActionCatalogEntry,
 } from '@/lib/nav/dashboard-quick-actions-catalog'
+import { useAuthStore } from '@/lib/store/auth-store'
 import { useAiAssistant } from '@/components/clarifi/ai-assistant-context'
 import { Pencil } from 'lucide-react'
 
@@ -102,10 +104,22 @@ function coerceQuickActionIds(ids: string[]): [string, string, string, string] {
   return out.slice(0, QUICK_ACTIONS_COUNT) as [string, string, string, string]
 }
 
-function readStoredQuickActionIds(): [string, string, string, string] {
-  if (typeof window === 'undefined') return [...DEFAULT_QUICK_ACTION_IDS]
+function migrateLegacyQuickActionsStorage(userId: string): void {
+  if (typeof window === 'undefined') return
+  const userKey = getQuickActionsStorageKey(userId)
+  if (localStorage.getItem(userKey)) return
+  const legacy = localStorage.getItem(QUICK_ACTIONS_STORAGE_KEY)
+  if (!legacy) return
+  localStorage.setItem(userKey, legacy)
+}
+
+function readStoredQuickActionIds(userId: string | null): [string, string, string, string] {
+  if (typeof window === 'undefined' || !userId) return [...DEFAULT_QUICK_ACTION_IDS]
+  migrateLegacyQuickActionsStorage(userId)
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(QUICK_ACTIONS_STORAGE_KEY) ?? 'null')
+    const parsed = JSON.parse(
+      window.localStorage.getItem(getQuickActionsStorageKey(userId)) ?? 'null',
+    )
     const normalized = normalizeStoredIds(parsed)
     if (!normalized) return [...DEFAULT_QUICK_ACTION_IDS]
     return coerceQuickActionIds(normalized)
@@ -114,34 +128,43 @@ function readStoredQuickActionIds(): [string, string, string, string] {
   }
 }
 
-function persistQuickActionIds(next: [string, string, string, string]) {
-  window.localStorage.setItem(QUICK_ACTIONS_STORAGE_KEY, JSON.stringify(next))
+function persistQuickActionIds(userId: string, next: [string, string, string, string]) {
+  window.localStorage.setItem(getQuickActionsStorageKey(userId), JSON.stringify(next))
 }
 
 function usePersistedQuickActionIds() {
+  const userId = useAuthStore((s) => s.user?.id ?? null)
   const [ids, setIds] = useState<[string, string, string, string]>(() => [...DEFAULT_QUICK_ACTION_IDS])
 
   useLayoutEffect(() => {
-    setIds(readStoredQuickActionIds())
-  }, [])
+    setIds(readStoredQuickActionIds(userId))
+  }, [userId])
 
-  const reorder = useCallback((from: number, to: number) => {
-    setIds((prev) => {
-      const next = coerceQuickActionIds(arrayMove([...prev], from, to))
-      persistQuickActionIds(next)
-      return next
-    })
-  }, [])
+  const reorder = useCallback(
+    (from: number, to: number) => {
+      if (!userId) return
+      setIds((prev) => {
+        const next = coerceQuickActionIds(arrayMove([...prev], from, to))
+        persistQuickActionIds(userId, next)
+        return next
+      })
+    },
+    [userId],
+  )
 
-  const replaceAt = useCallback((index: number, catalogId: string) => {
-    setIds((prev) => {
-      const next = [...prev]
-      next[index] = catalogId
-      const coerced = coerceQuickActionIds(next)
-      persistQuickActionIds(coerced)
-      return coerced
-    })
-  }, [])
+  const replaceAt = useCallback(
+    (index: number, catalogId: string) => {
+      if (!userId) return
+      setIds((prev) => {
+        const next = [...prev]
+        next[index] = catalogId
+        const coerced = coerceQuickActionIds(next)
+        persistQuickActionIds(userId, coerced)
+        return coerced
+      })
+    },
+    [userId],
+  )
 
   return { ids, reorder, replaceAt }
 }
@@ -329,6 +352,7 @@ export function DashboardQuickActions() {
 
   return (
     <>
+      <div data-tour="dashboard-actions">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -353,6 +377,7 @@ export function DashboardQuickActions() {
           </div>
         </SortableContext>
       </DndContext>
+      </div>
 
       <Dialog
         open={pickerOpen}

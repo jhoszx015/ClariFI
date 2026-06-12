@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { AuthFormShell } from '@/components/auth/auth-form-shell'
+import { getPasswordRequirements, isStrongPassword } from '@/lib/auth/password-rules'
 import { useAuthStore } from '@/lib/store/auth-store'
 import { Loader2, Eye, EyeOff, Check, X } from 'lucide-react'
 
@@ -23,13 +25,8 @@ export default function RegisterPage() {
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [error, setError] = useState('')
 
-  const passwordRequirements = [
-    { label: 'Mínimo de 6 caracteres', valid: password.length >= 6 },
-    { label: 'Contém número', valid: /\d/.test(password) },
-    { label: 'Senhas coincidem', valid: password === confirmPassword && password.length > 0 },
-  ]
-
-  const isPasswordValid = passwordRequirements.every((req) => req.valid)
+  const passwordRequirements = getPasswordRequirements(password, confirmPassword)
+  const isPasswordValid = isStrongPassword(password, confirmPassword)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,7 +38,7 @@ export default function RegisterPage() {
     }
 
     if (!isPasswordValid) {
-      setError('Por favor, atenda aos requisitos de senha.')
+      setError('Use uma senha forte: maiúscula, minúscula, número, caracter especial e confirmação igual.')
       return
     }
 
@@ -54,6 +51,8 @@ export default function RegisterPage() {
 
     if (result.ok) {
       router.push('/dashboard')
+    } else if (result.reason === 'weak_password') {
+      setError('Use uma senha forte: maiúscula, minúscula, número, caracter especial e confirmação igual.')
     } else {
       setError(
         'Este e-mail já está cadastrado. Tente entrar com sua senha ou use "Esqueceu a senha?" na tela de login.',
@@ -62,13 +61,14 @@ export default function RegisterPage() {
   }
 
   return (
+    <AuthFormShell>
     <Card className="w-full max-w-md border-border/50 shadow-lg">
-      <CardHeader className="space-y-1 text-center">
-        <CardTitle className="text-2xl font-bold">Crie sua conta</CardTitle>
-        <CardDescription>Comece sua jornada de transformação financeira</CardDescription>
+      <CardHeader className="space-y-1 px-6 pb-3 pt-6 text-center">
+        <CardTitle className="text-xl font-bold sm:text-2xl">Crie sua conta</CardTitle>
+        <CardDescription className="text-sm">Comece sua jornada de transformação financeira</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 px-6">
           {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
           <div className="space-y-2">
@@ -140,13 +140,13 @@ export default function RegisterPage() {
           </div>
 
           {password.length > 0 && (
-            <div className="space-y-2 rounded-lg bg-muted/50 p-3">
-              {passwordRequirements.map((req, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 rounded-lg bg-muted/50 p-2.5 sm:gap-x-3">
+              {passwordRequirements.map((req) => (
+                <div key={req.id} className="flex items-center gap-1.5 text-xs">
                   {req.valid ? (
-                    <Check className="h-4 w-4 text-primary" />
+                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
                   ) : (
-                    <X className="h-4 w-4 text-muted-foreground" />
+                    <X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   )}
                   <span className={req.valid ? 'text-foreground' : 'text-muted-foreground'}>{req.label}</span>
                 </div>
@@ -154,25 +154,31 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-start gap-2.5 pb-1 pt-2">
             <Checkbox
               id="terms"
+              className="mt-0.5 shrink-0"
               checked={acceptTerms}
               onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
             />
-            <Label htmlFor="terms" className="cursor-pointer text-sm font-normal leading-none">
-              Concordo com os{' '}
-              <Link href="/termos" className="text-primary hover:underline">
-                termos de uso
-              </Link>{' '}
-              e{' '}
-              <Link href="/privacidade" className="text-primary hover:underline">
-                política de privacidade
-              </Link>
+            <Label
+              htmlFor="terms"
+              className="cursor-pointer text-[13px] font-normal leading-5 sm:text-sm"
+            >
+              <span className="inline whitespace-nowrap">
+                Concordo com os{' '}
+                <Link href="/termos" className="text-primary hover:underline">
+                  termos de uso
+                </Link>{' '}
+                e{' '}
+                <Link href="/privacidade" className="text-primary hover:underline">
+                  política de privacidade
+                </Link>
+              </span>
             </Label>
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-4">
+        <CardFooter className="flex flex-col gap-3 border-t border-border/50 px-6 pb-6 pt-4">
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>
@@ -192,5 +198,6 @@ export default function RegisterPage() {
         </CardFooter>
       </form>
     </Card>
+    </AuthFormShell>
   )
 }

@@ -9,8 +9,11 @@ export interface User {
   createdAt: Date
   behavioralProfile?: BehavioralProfile
   profileHistory?: Array<{ profile: BehavioralProfile; date: Date }>
-  /** Primeiro acesso: escolha entre conectar banco ou cadastro manual (persistido). */
+  /** Primeiro acesso: tour de boas-vindas concluído (persistido). */
   onboardingCompleted?: boolean
+  /** Tour guiado do painel após novo cadastro. */
+  dashboardTourCompleted?: boolean
+  /** @deprecated Mantido só para migração de dados antigos. */
   onboardingMethod?: 'bank' | 'manual'
 }
 

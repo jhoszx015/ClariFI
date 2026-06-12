@@ -36,13 +36,14 @@
   --expense-chart-5: oklch(0.6 0.1 200);
   --expense-chart-6: oklch(0.6 0.02 250);
   --radius: 0.75rem;
-  --sidebar: oklch(0.22 0.04 250);
-  --sidebar-foreground: oklch(0.95 0.005 240);
+  /* Sidebar — tema claro (antes estava escuro no :root, quebrava o modo claro) */
+  --sidebar: oklch(0.99 0.002 240);
+  --sidebar-foreground: oklch(0.22 0.03 250);
   --sidebar-primary: oklch(0.65 0.17 160);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.3 0.04 250);
-  --sidebar-accent-foreground: oklch(0.95 0.005 240);
-  --sidebar-border: oklch(0.32 0.04 250);
+  --sidebar-accent: oklch(0.94 0.01 240);
+  --sidebar-accent-foreground: oklch(0.25 0.03 250);
+  --sidebar-border: oklch(0.9 0.01 240);
   --sidebar-ring: oklch(0.65 0.17 160);
   
   /* ClariFI Custom Colors */
@@ -52,6 +53,9 @@
   --navy-dark: oklch(0.22 0.08 255);
   --warning: oklch(0.75 0.15 85);
   --success: oklch(0.72 0.18 155);
+  --scrollbar-track: oklch(0.94 0.008 240);
+  --scrollbar-thumb: oklch(0.72 0.02 250 / 0.72);
+  --scrollbar-thumb-hover: oklch(0.58 0.03 250 / 0.88);
 }
 
 .dark {
@@ -101,6 +105,9 @@
   --navy-dark: oklch(0.15 0.08 255);
   --warning: oklch(0.75 0.15 85);
   --success: oklch(0.72 0.18 155);
+  --scrollbar-track: oklch(0.14 0.02 250);
+  --scrollbar-thumb: oklch(0.34 0.02 250 / 0.92);
+  --scrollbar-thumb-hover: oklch(0.44 0.03 250 / 0.96);
 }
 
 @theme inline {
@@ -158,12 +165,23 @@
     @apply bg-background text-foreground;
   }
 
-  /* Scroll suave para âncoras (#recursos, etc.) — evita “corte” abrupto */
-  @media (prefers-reduced-motion: no-preference) {
-    html {
-      scroll-behavior: smooth;
-      scroll-padding-top: 4.5rem;
-    }
+  html.has-ambient-background:not(.dark),
+  html.has-ambient-background.dark {
+    background-color: transparent;
+  }
+
+  /* Dashboard com sidebar inset — área externa no tema claro */
+  html:not(.dark) [data-slot='sidebar-wrapper'] {
+    background-color: var(--background);
+  }
+
+  body.ambient-background-active {
+    background: transparent !important;
+  }
+
+  /* Offset para âncoras (#recursos, etc.) alinhado ao header sticky */
+  html {
+    scroll-padding-top: 4.5rem;
   }
 
   /* Transição suave em links (navegação âncora / CTAs) — sem afetar todo o app */
@@ -171,5 +189,747 @@
     a {
       transition: color 0.2s ease, opacity 0.2s ease;
     }
+  }
+
+  /* Cursor personalizado ClariFI (desktop) */
+  html.custom-cursor-active,
+  html.custom-cursor-active body,
+  html.custom-cursor-active body * {
+    cursor: none !important;
+  }
+}
+
+/* Barra de rolagem — cores do tema (claro / escuro) */
+html:not(.dashboard-shell):not(.auth-shell) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+html:not(.dashboard-shell):not(.auth-shell)::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html:not(.dashboard-shell):not(.auth-shell)::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+html:not(.dashboard-shell):not(.auth-shell)::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid var(--scrollbar-track);
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+html:not(.dashboard-shell):not(.auth-shell)::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+html:not(.dashboard-shell):not(.auth-shell)::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+}
+
+/* Cursor personalizado: manter thumb do tema + cursor oculto */
+html.custom-cursor-active {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+html.custom-cursor-active::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html.custom-cursor-active::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  cursor: none !important;
+}
+
+html.custom-cursor-active::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid var(--scrollbar-track);
+  border-radius: 999px;
+  background-clip: padding-box;
+  cursor: none !important;
+}
+
+html.custom-cursor-active::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  cursor: none !important;
+}
+
+html.custom-cursor-active::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+  cursor: none !important;
+}
+
+html.custom-cursor-active *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html.custom-cursor-active *::-webkit-scrollbar-track {
+  cursor: none !important;
+}
+
+html.custom-cursor-active *::-webkit-scrollbar-thumb {
+  cursor: none !important;
+}
+
+.custom-cursor-ring {
+  border: 1.5px solid oklch(0.65 0.17 160 / 0.75);
+  border-radius: 50%;
+  box-shadow:
+    0 0 12px oklch(0.65 0.17 160 / 0.35),
+    inset 0 0 8px oklch(0.72 0.18 155 / 0.15);
+  transition:
+    width 0.2s ease,
+    height 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.25s ease;
+  will-change: transform, width, height;
+}
+
+.custom-cursor-ring[data-hover='true'] {
+  border-color: oklch(0.72 0.18 155 / 0.95);
+  box-shadow:
+    0 0 20px oklch(0.65 0.17 160 / 0.55),
+    0 0 40px oklch(0.45 0.12 260 / 0.2);
+}
+
+.custom-cursor-ring[data-text='true'] {
+  width: 2px !important;
+  height: 22px !important;
+  border-radius: 1px;
+  border-width: 0;
+  background: oklch(0.65 0.17 160);
+  box-shadow: 0 0 8px oklch(0.65 0.17 160 / 0.5);
+}
+
+.custom-cursor-ring[data-idle='true'] {
+  border-color: oklch(0.72 0.18 155 / 0.9);
+  box-shadow:
+    0 0 24px oklch(0.65 0.17 160 / 0.5),
+    0 0 48px oklch(0.45 0.12 260 / 0.25),
+    inset 0 0 12px oklch(0.72 0.18 155 / 0.2);
+  animation: custom-cursor-orbit 4.5s linear infinite;
+}
+
+.custom-cursor-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: oklch(0.72 0.18 155);
+  box-shadow: 0 0 10px oklch(0.65 0.17 160 / 0.8);
+  will-change: transform;
+}
+
+.custom-cursor-dot[data-idle='true'] {
+  animation: custom-cursor-pulse 1.85s ease-in-out infinite;
+}
+
+@keyframes custom-cursor-orbit {
+  from {
+    filter: hue-rotate(0deg);
+  }
+  to {
+    filter: hue-rotate(12deg);
+  }
+}
+
+@keyframes custom-cursor-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 10px oklch(0.65 0.17 160 / 0.8);
+  }
+  50% {
+    box-shadow:
+      0 0 18px oklch(0.72 0.18 155 / 1),
+      0 0 32px oklch(0.65 0.17 160 / 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .custom-cursor-ring[data-idle='true'],
+  .custom-cursor-dot[data-idle='true'] {
+    animation: none;
+  }
+}
+
+/* Dashboard: scroll interno, sem barra na janela */
+html.dashboard-shell,
+html.dashboard-shell body {
+  overflow: hidden;
+  height: 100%;
+}
+
+html.dashboard-shell.custom-cursor-active {
+  scrollbar-width: none;
+}
+
+html.dashboard-shell.custom-cursor-active::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Login / cadastro: tela fixa, sem rolagem */
+html.auth-shell,
+html.auth-shell body {
+  overflow: hidden;
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+html.auth-shell.custom-cursor-active {
+  scrollbar-width: none;
+}
+
+html.auth-shell.custom-cursor-active::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Dashboard: layout em duas colunas */
+.dashboard-app-shell {
+  background: var(--background);
+  box-sizing: border-box;
+}
+
+/* Tour guiado — animações leves (CSS only, GPU-friendly) */
+.dashboard-tour-root {
+  contain: layout style;
+  --dashboard-tour-scrim: 0.52;
+  --dashboard-tour-scrim-intro: 0.55;
+}
+
+.dashboard-tour-backdrop {
+  animation: dashboard-tour-fade-in 0.32s ease-out both;
+}
+
+.dashboard-tour-backdrop--intro {
+  background: rgba(0, 0, 0, var(--dashboard-tour-scrim-intro));
+  backdrop-filter: blur(2px);
+}
+
+.dashboard-tour-backdrop--finish {
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(1px);
+}
+
+.dashboard-tour-backdrop--loading {
+  background: rgba(0, 0, 0, var(--dashboard-tour-scrim));
+  backdrop-filter: blur(1px);
+}
+
+.dashboard-tour-scrim-fill {
+  fill: rgba(0, 0, 0, var(--dashboard-tour-scrim));
+}
+
+.dashboard-tour-spotlight-ring {
+  position: fixed;
+  z-index: 262;
+  border-radius: 12px;
+  pointer-events: none;
+  background: transparent;
+  box-shadow:
+    0 0 0 2px color-mix(in oklch, var(--primary) 78%, transparent),
+    0 0 0 5px color-mix(in oklch, var(--primary) 24%, transparent),
+    0 12px 36px -8px color-mix(in oklch, var(--primary) 28%, transparent);
+}
+
+.dashboard-tour--motion .dashboard-tour-spotlight-ring {
+  transition:
+    top 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    left 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dashboard-tour--motion .dashboard-tour-card {
+  transition:
+    top 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    left 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.28s ease-out;
+}
+
+.dashboard-tour-card {
+  opacity: 1;
+  box-shadow:
+    0 24px 48px -12px rgba(0, 0, 0, 0.35),
+    0 0 0 1px color-mix(in oklch, var(--border) 80%, transparent);
+}
+
+.dashboard-tour-card--sheet {
+  overflow: visible;
+  max-height: none;
+  box-shadow:
+    0 -8px 32px -8px rgba(0, 0, 0, 0.28),
+    0 24px 48px -12px rgba(0, 0, 0, 0.35),
+    0 0 0 1px color-mix(in oklch, var(--border) 80%, transparent);
+}
+
+.dashboard-tour-card-body {
+  animation: dashboard-tour-body-in 0.34s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.dashboard-tour-progress {
+  transition: width 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dashboard-tour--motion .dashboard-tour-icon {
+  animation: dashboard-tour-icon-in 0.36s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes dashboard-tour-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dashboard-tour-body-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes dashboard-tour-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dashboard-tour--reduced .dashboard-tour-spotlight-ring,
+.dashboard-tour--reduced .dashboard-tour-card,
+.dashboard-tour--reduced .dashboard-tour-progress,
+.dashboard-tour--reduced .dashboard-tour-card-body,
+.dashboard-tour--reduced .dashboard-tour-icon,
+.dashboard-tour--reduced .dashboard-tour-backdrop {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-tour-spotlight-ring,
+  .dashboard-tour-card,
+  .dashboard-tour-progress,
+  .dashboard-tour-card-body,
+  .dashboard-tour-icon,
+  .dashboard-tour-backdrop {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* —— Fundo ambiente ClariFI —— */
+.ambient-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ambient-scene {
+  position: absolute;
+  inset: 0;
+}
+
+.ambient-base {
+  position: absolute;
+  inset: 0;
+}
+
+.ambient-base--dark {
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 55% at 8% 0%, oklch(0.42 0.12 260 / 0.38), transparent 52%),
+    radial-gradient(ellipse 70% 50% at 100% 20%, oklch(0.5 0.14 255 / 0.22), transparent 50%),
+    radial-gradient(ellipse 60% 45% at 72% 92%, oklch(0.55 0.16 160 / 0.18), transparent 55%),
+    radial-gradient(ellipse 45% 35% at 28% 72%, oklch(0.38 0.08 280 / 0.12), transparent 50%),
+    oklch(0.13 0.03 250);
+}
+
+.ambient-base--dark::after {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    oklch(0.52 0.14 160 / 0.14),
+    transparent 55%
+  );
+  animation: ambient-dark-base-glow 18s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.ambient-base--light {
+  background:
+    radial-gradient(ellipse 80% 55% at 5% 0%, oklch(0.72 0.2 155 / 0.22), transparent 52%),
+    radial-gradient(ellipse 70% 50% at 100% 15%, oklch(0.58 0.14 255 / 0.16), transparent 50%),
+    radial-gradient(ellipse 60% 45% at 75% 95%, oklch(0.82 0.14 90 / 0.14), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 25% 75%, oklch(0.68 0.16 160 / 0.1), transparent 50%),
+    oklch(0.985 0.002 240);
+}
+
+.ambient-nebula {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.ambient-nebula--dark-a {
+  width: min(52vw, 500px);
+  height: min(52vw, 500px);
+  top: -14%;
+  right: -10%;
+  background: oklch(0.45 0.12 260 / 0.32);
+  animation: ambient-drift-a 26s ease-in-out infinite;
+}
+
+.ambient-nebula--dark-b {
+  width: min(44vw, 400px);
+  height: min(44vw, 400px);
+  bottom: 2%;
+  left: -12%;
+  background: oklch(0.52 0.14 160 / 0.22);
+  animation: ambient-drift-b 32s ease-in-out infinite;
+}
+
+.ambient-nebula--dark-c {
+  width: min(36vw, 340px);
+  height: min(36vw, 340px);
+  top: 44%;
+  left: 34%;
+  background: oklch(0.38 0.08 280 / 0.18);
+  animation: ambient-drift-c 28s ease-in-out infinite;
+}
+
+.ambient-dark-orbs {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 12% 22%, oklch(0.55 0.14 160 / 0.28) 0%, transparent 9%),
+    radial-gradient(circle at 80% 18%, oklch(0.45 0.12 255 / 0.22) 0%, transparent 8%),
+    radial-gradient(circle at 88% 72%, oklch(0.5 0.1 200 / 0.18) 0%, transparent 10%),
+    radial-gradient(circle at 24% 78%, oklch(0.52 0.14 160 / 0.2) 0%, transparent 7%),
+    radial-gradient(circle at 50% 48%, oklch(0.42 0.1 280 / 0.14) 0%, transparent 11%);
+  animation: ambient-dark-orbs-float 20s ease-in-out infinite;
+}
+
+.ambient-dark-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: radial-gradient(oklch(0.92 0.02 240 / 0.55) 0.55px, transparent 0.55px);
+  background-size: 30px 30px;
+  mask-image: radial-gradient(ellipse 88% 78% at 50% 45%, black 12%, transparent 80%);
+  animation:
+    ambient-dark-grid-drift 48s linear infinite,
+    ambient-dark-grid-pulse 6s ease-in-out infinite;
+}
+
+.ambient-dark-stars-css {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(2px 2px at 18% 22%, oklch(0.98 0.01 240 / 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 72% 12%, oklch(0.75 0.16 155 / 0.65), transparent),
+    radial-gradient(2.5px 2.5px at 88% 58%, oklch(0.98 0.01 240 / 0.55), transparent),
+    radial-gradient(1.5px 1.5px at 32% 78%, oklch(0.98 0.01 240 / 0.5), transparent),
+    radial-gradient(2px 2px at 55% 38%, oklch(0.7 0.12 280 / 0.45), transparent),
+    radial-gradient(1.5px 1.5px at 8% 62%, oklch(0.98 0.01 240 / 0.4), transparent);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  animation: ambient-dark-stars-css-twinkle 7s ease-in-out infinite;
+  mask-image: radial-gradient(ellipse 90% 85% at 50% 45%, black 10%, transparent 75%);
+}
+
+.ambient-dark-stars-css--delay {
+  opacity: 0.35;
+  animation: ambient-dark-stars-css-twinkle 9s ease-in-out infinite;
+  animation-delay: -4s;
+  transform: scale(1.02);
+}
+
+.ambient-dark-aurora {
+  position: absolute;
+  inset: -20%;
+  opacity: 0.45;
+  background: conic-gradient(
+    from 220deg at 65% 25%,
+    transparent 0deg,
+    oklch(0.55 0.14 160 / 0.14) 30deg,
+    transparent 70deg,
+    oklch(0.45 0.12 260 / 0.12) 110deg,
+    transparent 160deg
+  );
+  animation: ambient-dark-aurora 22s ease-in-out infinite;
+}
+
+.ambient-dark-shimmer {
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    oklch(0.95 0.02 240 / 0.03) 48%,
+    oklch(0.55 0.14 160 / 0.06) 50%,
+    oklch(0.95 0.02 240 / 0.03) 52%,
+    transparent 58%
+  );
+  animation: ambient-shimmer 14s ease-in-out infinite;
+}
+
+.ambient-nebula--light-a {
+  width: min(55vw, 520px);
+  height: min(55vw, 520px);
+  top: -15%;
+  right: -10%;
+  background: oklch(0.72 0.2 155 / 0.28);
+  animation: ambient-drift-a 24s ease-in-out infinite;
+}
+
+.ambient-nebula--light-b {
+  width: min(48vw, 440px);
+  height: min(48vw, 440px);
+  bottom: 0%;
+  left: -12%;
+  background: oklch(0.58 0.14 255 / 0.2);
+  animation: ambient-drift-b 30s ease-in-out infinite;
+}
+
+.ambient-nebula--light-c {
+  width: min(40vw, 360px);
+  height: min(40vw, 360px);
+  top: 42%;
+  left: 32%;
+  background: oklch(0.88 0.12 85 / 0.18);
+  animation: ambient-drift-c 26s ease-in-out infinite;
+}
+
+.ambient-light-orbs {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 10% 20%, oklch(0.72 0.2 155 / 0.2) 0%, transparent 10%),
+    radial-gradient(circle at 82% 15%, oklch(0.58 0.14 255 / 0.14) 0%, transparent 9%),
+    radial-gradient(circle at 90% 75%, oklch(0.85 0.14 90 / 0.16) 0%, transparent 11%),
+    radial-gradient(circle at 22% 80%, oklch(0.68 0.18 160 / 0.12) 0%, transparent 8%),
+    radial-gradient(circle at 50% 45%, oklch(0.75 0.16 200 / 0.1) 0%, transparent 12%);
+  animation: ambient-orbs-float 20s ease-in-out infinite;
+}
+
+.ambient-light-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.65;
+  background-image: radial-gradient(oklch(0.5 0.1 250 / 0.5) 0.7px, transparent 0.7px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 45%, black 15%, transparent 78%);
+}
+
+.ambient-light-shimmer {
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(
+    115deg,
+    transparent 40%,
+    oklch(1 0 0 / 0.08) 47%,
+    oklch(0.72 0.2 155 / 0.14) 50%,
+    oklch(1 0 0 / 0.08) 53%,
+    transparent 60%
+  );
+  animation: ambient-shimmer 12s ease-in-out infinite;
+}
+
+.ambient-light-rays {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background: conic-gradient(
+    from 200deg at 70% 20%,
+    transparent 0deg,
+    oklch(0.72 0.18 155 / 0.12) 25deg,
+    transparent 50deg,
+    oklch(0.58 0.14 255 / 0.1) 80deg,
+    transparent 120deg
+  );
+  animation: ambient-rays 18s ease-in-out infinite;
+}
+
+@keyframes ambient-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(4%, 3%) scale(1.06);
+  }
+}
+
+@keyframes ambient-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-3%, -4%) scale(1.05);
+  }
+}
+
+@keyframes ambient-drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(5%, -2%);
+  }
+}
+
+@keyframes ambient-orbs-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(1.5%, -1%);
+    opacity: 0.85;
+  }
+}
+
+@keyframes ambient-dark-orbs-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  33% {
+    transform: translate(2.5%, -1.5%) scale(1.03);
+    opacity: 0.9;
+  }
+  66% {
+    transform: translate(-2%, 2%) scale(0.98);
+    opacity: 0.95;
+  }
+}
+
+@keyframes ambient-shimmer {
+  0%,
+  100% {
+    transform: translateX(-8%) rotate(0deg);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateX(8%) rotate(0deg);
+    opacity: 0.9;
+  }
+}
+
+@keyframes ambient-rays {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: rotate(8deg) scale(1.04);
+  }
+}
+
+@keyframes ambient-dark-base-glow {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(6%, 4%) scale(1.12);
+    opacity: 1;
+  }
+}
+
+@keyframes ambient-dark-grid-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 60px 60px;
+  }
+}
+
+@keyframes ambient-dark-grid-pulse {
+  0%,
+  100% {
+    opacity: 0.28;
+  }
+  50% {
+    opacity: 0.42;
+  }
+}
+
+@keyframes ambient-dark-stars-css-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+@keyframes ambient-dark-aurora {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: rotate(12deg) scale(1.05);
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-scene {
+    transition: none;
+  }
+
+  .ambient-nebula,
+  .ambient-light-orbs,
+  .ambient-light-shimmer,
+  .ambient-light-rays,
+  .ambient-dark-orbs,
+  .ambient-dark-shimmer,
+  .ambient-dark-stars-css--delay,
+  .ambient-dark-grid,
+  .ambient-dark-stars-css,
+  .ambient-dark-aurora,
+  .ambient-base--dark::after {
+    animation: none !important;
+  }
+
+  .ambient-dark-stars-canvas {
+    display: none;
   }
 }

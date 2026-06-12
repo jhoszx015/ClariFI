@@ -22,11 +22,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useAuthStore } from '@/lib/store/auth-store'
-import { removeFinanceStorageForUser } from '@/lib/store/finance-user-persist'
 
 export default function PerfilPage() {
   const router = useRouter()
-  const { user, logout, updateUserInfo } = useAuthStore()
+  const { user, closeAccount, updateUserInfo } = useAuthStore()
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false)
   const [closeOpen, setCloseOpen] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState(10)
@@ -46,14 +45,8 @@ export default function PerfilPage() {
     return () => window.clearInterval(id)
   }, [closeOpen])
 
-  const handleCloseAccount = () => {
-    try {
-      if (user?.id) removeFinanceStorageForUser(user.id)
-      localStorage.removeItem('clarifi-auth')
-    } catch {
-      /* ignore */
-    }
-    logout()
+  const handleCloseAccount = async () => {
+    await closeAccount()
     setCloseOpen(false)
     router.push('/')
   }
@@ -194,10 +187,10 @@ export default function PerfilPage() {
             <AlertDialogTitle>Encerrar conta?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <span className="block font-medium text-destructive">
-                Esta ação é irreversível: seus dados locais serão apagados e a sessão encerrada.
+                Esta ação é irreversível: sua conta e todos os dados salvos neste dispositivo serão apagados.
               </span>
               <span className="block text-muted-foreground">
-                Esta ação é permanente e removerá todos os seus dados locais.
+                Você poderá criar uma nova conta depois, inclusive com o mesmo e-mail — começando do zero.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>

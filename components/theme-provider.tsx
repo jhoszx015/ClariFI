@@ -22,8 +22,14 @@ const noopSetTheme = () => {}
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>('system')
-  const [resolvedTheme, setResolvedTheme] = React.useState<'light' | 'dark'>('light')
-  const [systemTheme, setSystemTheme] = React.useState<'light' | 'dark'>('light')
+  const [resolvedTheme, setResolvedTheme] = React.useState<'light' | 'dark'>(() => {
+    if (typeof document === 'undefined') return 'light'
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  })
+  const [systemTheme, setSystemTheme] = React.useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light'
+    return getSystemTheme()
+  })
 
   React.useEffect(() => {
     const stored = readStoredTheme()

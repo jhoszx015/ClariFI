@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 
+import { AmbientBackground } from '@/components/clarifi/ambient-background'
+import { AppCustomCursor } from '@/components/clarifi/app-custom-cursor'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
-import { getThemeInitScript } from '@/lib/theme/clarifi-theme'
 import './globals.css'
 
 const geistSans = Geist({
@@ -48,17 +50,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <head>
-        <script
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: getThemeInitScript() }}
-        />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        suppressHydrationWarning
       >
+        <Script src="/theme-init.js" strategy="beforeInteractive" />
         <ThemeProvider>
-          {children}
+          <AmbientBackground />
+          <AppCustomCursor />
+          <div className="relative z-[1] min-h-screen">{children}</div>
           <Toaster richColors position="top-center" closeButton />
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

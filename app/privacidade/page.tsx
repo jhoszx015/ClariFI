@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function PrivacidadePage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-transparent">
       <LandingHeader />
       <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
         <Card>
