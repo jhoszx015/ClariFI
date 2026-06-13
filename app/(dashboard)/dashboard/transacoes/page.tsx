@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog'
 import { useFinanceStore } from '@/lib/store/finance-store'
 import { DashboardPanelBack } from '@/components/clarifi/dashboard-panel-back'
+import { FilterDateField } from '@/components/clarifi/filter-date-field'
 import { categoryConfig } from '@/lib/data/mock-data'
 import type { FinanceScope, TransactionCategory, TransactionType } from '@/types'
 import { Switch } from '@/components/ui/switch'
@@ -221,7 +222,7 @@ function TransactionsPageContent() {
           <h1 className="text-2xl font-bold text-foreground md:text-3xl">Transações</h1>
           <p className="text-muted-foreground">
             Histórico e categorias. Com contas conectadas (Open Finance), a categorização automática organiza
-            seus gastos para o dashboard e os alertas inteligentes.
+            seus gastos para o dashboard e as notificações de entradas e saídas.
           </p>
         </div>
         <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
@@ -434,8 +435,8 @@ function TransactionsPageContent() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-4 md:flex-row">
-            <div className="relative flex-1">
+          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-0.5">
+            <div className="relative min-w-[180px] flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar transação…"
@@ -448,7 +449,7 @@ function TransactionsPageContent() {
               value={filterType}
               onValueChange={(value: TransactionType | 'all') => setFilterType(value)}
             >
-              <SelectTrigger className="w-full md:w-[180px]">
+              <SelectTrigger className="w-[160px] shrink-0">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -461,7 +462,7 @@ function TransactionsPageContent() {
               value={filterCategory}
               onValueChange={(value: TransactionCategory | 'all') => setFilterCategory(value)}
             >
-              <SelectTrigger className="w-full md:w-[180px]">
+              <SelectTrigger className="w-[180px] shrink-0">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -473,30 +474,18 @@ function TransactionsPageContent() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="space-y-1">
-              <Label htmlFor="date-from" className="text-xs text-muted-foreground">
-                De
-              </Label>
-              <Input
-                id="date-from"
-                type="date"
-                className="w-full md:w-[160px]"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="date-to" className="text-xs text-muted-foreground">
-                Até
-              </Label>
-              <Input
-                id="date-to"
-                type="date"
-                className="w-full md:w-[160px]"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
-            </div>
+            <FilterDateField
+              id="date-from"
+              label="De"
+              value={dateFrom}
+              onChange={setDateFrom}
+            />
+            <FilterDateField
+              id="date-to"
+              label="Até"
+              value={dateTo}
+              onChange={setDateTo}
+            />
           </div>
         </CardContent>
       </Card>

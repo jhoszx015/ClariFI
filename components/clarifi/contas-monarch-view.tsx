@@ -5,7 +5,7 @@ import {
   useMemo,
   useState,
   type ReactNode,
-  type ButtonHTMLAttributes,
+  type HTMLAttributes,
 } from 'react'
 import {
   DndContext,
@@ -69,7 +69,6 @@ import { toast } from 'sonner'
 import { DashboardPanelBack } from '@/components/clarifi/dashboard-panel-back'
 import {
   ChevronRight,
-  GripVertical,
   Plus,
   RefreshCw,
   Sparkles,
@@ -106,9 +105,21 @@ function SortableBucketCard({
   children,
 }: {
   bucketKey: AssetBucketKey
-  children: (drag: { dragHandleProps: ButtonHTMLAttributes<HTMLButtonElement> }) => ReactNode
+  children: (drag: {
+    headerDragProps: HTMLAttributes<HTMLDivElement> & {
+      ref: (element: HTMLElement | null) => void
+    }
+  }) => ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id: `bucket::${bucketKey}`,
     data: { type: 'bucket', bucket: bucketKey },
   })
@@ -117,10 +128,14 @@ function SortableBucketCard({
     transition,
     opacity: isDragging ? 0.92 : 1,
   }
-  const dragHandleProps = { ...listeners, ...attributes } as ButtonHTMLAttributes<HTMLButtonElement>
+  const headerDragProps = {
+    ref: setActivatorNodeRef,
+    ...listeners,
+    ...attributes,
+  } as HTMLAttributes<HTMLDivElement> & { ref: (element: HTMLElement | null) => void }
   return (
     <div ref={setNodeRef} style={style} className={cn(isDragging && 'z-50')}>
-      {children({ dragHandleProps })}
+      {children({ headerDragProps })}
     </div>
   )
 }
@@ -224,20 +239,13 @@ function DraggableAccountRow({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-2 rounded-lg border border-border/50 bg-background/90 px-2 py-2 text-sm shadow-sm',
-        isDragging && 'ring-2 ring-primary/30',
+        'flex cursor-grab items-center gap-2 rounded-lg border border-border/50 bg-background/90 px-2 py-2 text-sm shadow-sm touch-none active:cursor-grabbing',
+        isDragging && 'z-50 ring-2 ring-primary/30',
       )}
+      {...listeners}
+      {...attributes}
     >
-      <button
-        type="button"
-        className="touch-none rounded p-1 text-muted-foreground hover:bg-muted"
-        {...listeners}
-        {...attributes}
-        aria-label="Arrastar conta"
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 select-none">
         <p className="font-medium">{item.name}</p>
         <p
           className={cn(
@@ -250,7 +258,10 @@ function DraggableAccountRow({
           {item.kind === 'liability' ? ' · passivo' : ''}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div
+        className="flex shrink-0 items-center gap-0.5"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit} title="Editar">
           <Pencil className="h-4 w-4" />
         </Button>
@@ -516,7 +527,7 @@ export function ContasMonarchView() {
               Ativos {formatCurrency(totalAssets)} · O que você deve {formatCurrency(totalLiabilities)}
             </p>
             <p className="mt-3 text-xs text-muted-foreground">
-              Arraste pelo ícone ⋮⋮ para mudar a ordem das categorias ou mover uma conta para outro grupo.
+              Segure e arraste uma categoria ou conta em qualquer lugar dela para reorganizar.
             </p>
           </CardContent>
         </Card>
@@ -536,21 +547,18 @@ export function ContasMonarchView() {
                 const items = accountBuckets[key]
                 return (
                   <SortableBucketCard key={key} bucketKey={key}>
-                    {({ dragHandleProps }) => (
+                    {({ headerDragProps }) => (
                       <Collapsible
                         open={open}
                         onOpenChange={(v) => setOpenBuckets((s) => ({ ...s, [key]: v }))}
                       >
                         <Card className="border-border/60 shadow-sm transition-colors hover:border-border">
-                          <div className="flex items-stretch">
-                            <button
-                              type="button"
-                              className="touch-none shrink-0 rounded-l-xl border-r border-border/50 bg-muted/25 px-2 py-4 text-muted-foreground hover:bg-muted/45"
-                              aria-label="Arrastar categoria"
-                              {...dragHandleProps}
-                            >
-                              <GripVertical className="h-5 w-5" />
-                            </button>
+                          <div
+                            {...headerDragProps}
+                            className={cn(
+                              'flex items-stretch touch-none cursor-grab active:cursor-grabbing active:bg-muted/20',
+                            )}
+                          >
                             <CollapsibleTrigger asChild>
                               <button
                                 type="button"
@@ -562,7 +570,7 @@ export function ContasMonarchView() {
                                     open && 'rotate-90',
                                   )}
                                 />
-                                <div className="min-w-0 flex-1">
+                                <div className="min-w-0 flex-1 select-none">
                                   <p className="font-semibold text-foreground">{label}</p>
                                   <p className="text-sm text-muted-foreground">Saldo neste grupo</p>
                                 </div>

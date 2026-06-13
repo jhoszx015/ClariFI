@@ -1,9 +1,16 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, Pencil } from 'lucide-react'
+import {
+  ChevronRight,
+  Home,
+  Pencil,
+  PiggyBank,
+  Sparkles,
+  Target,
+  TrendingUp,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Progress } from '@/components/ui/progress'
 import { Input } from '@/components/ui/input'
@@ -24,14 +31,15 @@ export type ResolvedBudgetLine = {
   rowTone: 'ok' | 'warn' | 'over'
 }
 
-function lineTone(groupId: BudgetGroupId, usagePct: number, remaining: number): ResolvedBudgetLine['rowTone'] {
-  if (groupId === 'renda') {
-    if (remaining < 0) return 'warn'
-    return 'ok'
-  }
-  if (usagePct >= 100) return 'over'
-  if (usagePct >= 80) return 'warn'
-  return 'ok'
+const GROUP_META: Record<
+  BudgetGroupId,
+  { icon: typeof TrendingUp; accent: string; bg: string }
+> = {
+  renda: { icon: TrendingUp, accent: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
+  fixo: { icon: Home, accent: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500/10' },
+  variavel: { icon: Sparkles, accent: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10' },
+  nao_mensal: { icon: PiggyBank, accent: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-500/10' },
+  metas: { icon: Target, accent: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-500/10' },
 }
 
 export function BudgetMonarchGroup({
@@ -45,175 +53,193 @@ export function BudgetMonarchGroup({
   expectedMonthlyIncome?: number
   onBudgetedChange: (lineId: string, value: number) => void
 }) {
-  const [open, setOpen] = useState(group.id === 'variavel' || group.id === 'renda')
+  const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
   const isIncome = group.id === 'renda'
+  const meta = GROUP_META[group.id]
+  const Icon = meta.icon
+
   const agg = useMemo(
     () => aggregateGroupLines(lines.map((l) => ({ budgeted: l.budgeted, actual: l.actual }))),
     [lines],
   )
 
-  const groupUsagePct =
-    agg.budgeted > 0 ? Math.min(150, (agg.actual / agg.budgeted) * 100) : 0
+  const groupUsagePct = agg.budgeted > 0 ? Math.min(100, (agg.actual / agg.budgeted) * 100) : 0
   const groupRemaining = isIncome ? agg.actual - agg.budgeted : agg.remaining
+  const progressValue = isIncome
+    ? Math.min(100, (agg.actual / Math.max(agg.budgeted, 1)) * 100)
+    : groupUsagePct
 
-  const progressValue = Math.min(100, isIncome ? (agg.actual / Math.max(agg.budgeted, 1)) * 100 : groupUsagePct)
+  const overCount = lines.filter((l) => l.rowTone === 'over').length
+  const warnCount = lines.filter((l) => l.rowTone === 'warn').length
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <Card className="border-border/60 shadow-sm">
-        <CardHeader className="space-y-4 pb-3">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/30"
+          >
+            <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', meta.bg)}>
+              <Icon className={cn('h-5 w-5', meta.accent)} />
+            </div>
             <div className="min-w-0 flex-1">
-              <CardTitle className="text-lg">{group.title}</CardTitle>
-              <CardDescription className="mt-1">{group.subtitle}</CardDescription>
-              <div className="mt-3 space-y-1.5">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{isIncome ? 'Progresso das entradas' : 'Uso do grupo em relação ao orçado'}</span>
-                  <span className="font-medium text-foreground">{progressValue.toFixed(0)}%</span>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-foreground">{group.title}</span>
+                {(overCount > 0 || warnCount > 0) && (
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                      overCount > 0
+                        ? 'bg-destructive/15 text-destructive'
+                        : 'bg-amber-500/15 text-amber-800 dark:text-amber-200',
+                    )}
+                  >
+                    {overCount > 0 ? `${overCount} acima` : `${warnCount} alerta${warnCount > 1 ? 's' : ''}`}
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 space-y-1">
                 <Progress
-                  value={Math.min(100, progressValue)}
+                  value={progressValue}
                   className={cn(
-                    'h-2',
+                    'h-1.5',
                     !isIncome && progressValue >= 100 && '[&>div]:bg-destructive',
                     !isIncome && progressValue >= 80 && progressValue < 100 && '[&>div]:bg-amber-500',
                   )}
                 />
+                <p className="text-xs text-muted-foreground">
+                  {formatCurrency(agg.actual)} de {formatCurrency(agg.budgeted)} · {progressValue.toFixed(0)}%
+                </p>
               </div>
             </div>
-            <div className="grid w-full shrink-0 grid-cols-3 gap-3 rounded-lg border border-border/50 bg-muted/15 px-3 py-2 text-sm sm:w-auto sm:min-w-[280px]">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Orçado</p>
-                <p className="font-semibold tabular-nums">{formatCurrency(agg.budgeted)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {isIncome ? 'Recebido' : 'Real (gasto)'}
-                </p>
-                <p className={cn('font-semibold tabular-nums', isIncome ? 'text-primary' : 'text-destructive')}>
-                  {formatCurrency(agg.actual)}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {isIncome ? 'Saldo vs meta' : 'Restante'}
-                </p>
-                <p
+            <div className="hidden shrink-0 text-right text-sm tabular-nums sm:block">
+              <p
+                className={cn(
+                  'font-semibold',
+                  isIncome
+                    ? groupRemaining >= 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                    : groupRemaining < 0
+                      ? 'text-destructive'
+                      : 'text-emerald-600 dark:text-emerald-400',
+                )}
+              >
+                {formatCurrency(groupRemaining)}
+              </p>
+              <p className="text-[11px] text-muted-foreground">{isIncome ? 'saldo' : 'restante'}</p>
+            </div>
+            <ChevronRight
+              className={cn('h-5 w-5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-90')}
+            />
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="space-y-2 border-t border-border/40 bg-muted/10 px-4 py-3">
+            {lines.map((row) => {
+              const linePct = Math.min(100, row.usagePct)
+              return (
+                <div
+                  key={row.id}
                   className={cn(
-                    'font-semibold tabular-nums',
-                    isIncome
-                      ? groupRemaining >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-amber-600 dark:text-amber-400'
-                      : groupRemaining < 0
-                        ? 'text-destructive'
-                        : 'text-emerald-600 dark:text-emerald-400',
+                    'rounded-lg border border-border/50 bg-card px-3 py-3',
+                    row.rowTone === 'over' && 'border-destructive/30 bg-destructive/5',
+                    row.rowTone === 'warn' && 'border-amber-500/30 bg-amber-500/5',
                   )}
                 >
-                  {formatCurrency(groupRemaining)}
-                </p>
-              </div>
-            </div>
-          </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="w-full justify-between gap-2 sm:w-fit" type="button">
-              <span>{open ? 'Recolher' : `Expandir (${lines.length} linhas)`}</span>
-              <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')} />
-            </Button>
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent className="border-t border-border/40 pt-4">
-            <div className="space-y-1">
-              <div className="grid grid-cols-[1fr_minmax(0,5rem)_minmax(0,5.5rem)_minmax(0,5.5rem)_2rem] gap-2 border-b border-border/40 pb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[1fr_6rem_6rem_6rem_2rem] sm:text-xs">
-                <span>Item</span>
-                <span className="text-right">Orç.</span>
-                <span className="text-right">{isIncome ? 'Rec.' : 'Real'}</span>
-                <span className="text-right">{isIncome ? 'Saldo' : 'Rest.'}</span>
-                <span className="sr-only sm:not-sr-only sm:text-center">Edit.</span>
-              </div>
-              {lines.map((row) => {
-                const rem = row.remaining
-                const tone = row.rowTone
-                return (
-                  <div
-                    key={row.id}
-                    className={cn(
-                      'grid grid-cols-[1fr_minmax(0,5rem)_minmax(0,5.5rem)_minmax(0,5.5rem)_2rem] items-center gap-2 rounded-md px-2 py-2 text-sm sm:grid-cols-[1fr_6rem_6rem_6rem_2rem]',
-                      'odd:bg-muted/20',
-                      tone === 'over' && 'bg-destructive/5 ring-1 ring-destructive/20',
-                      tone === 'warn' && 'bg-amber-500/5 ring-1 ring-amber-500/25',
-                    )}
-                  >
-                    <span className="min-w-0 font-medium text-foreground">
-                      {row.name}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">{row.name}</p>
                       {expectedMonthlyIncome > 0 && row.budgeted > 0 && (
-                        <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground sm:inline sm:ml-2 sm:mt-0">
-                          ({((row.budgeted / expectedMonthlyIncome) * 100).toFixed(1).replace('.', ',')}% da renda)
-                        </span>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {((row.budgeted / expectedMonthlyIncome) * 100).toFixed(1).replace('.', ',')}% da renda
+                        </p>
                       )}
-                    </span>
-                    {editingId === row.id ? (
-                      <Input
-                        className="h-8 text-right text-xs tabular-nums"
-                        inputMode="decimal"
-                        value={draft}
-                        autoFocus
-                        onChange={(e) => setDraft(e.target.value)}
-                        onBlur={() => {
-                          const n = parseMoneyBr(draft)
-                          if (Number.isFinite(n) && n >= 0) onBudgetedChange(row.id, n)
-                          setEditingId(null)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                        }}
-                      />
-                    ) : (
-                      <span className="text-right tabular-nums text-foreground">{formatCurrency(row.budgeted)}</span>
-                    )}
-                    <span className={cn('text-right tabular-nums', isIncome ? 'text-primary' : 'text-destructive')}>
-                      {formatCurrency(row.actual)}
-                    </span>
-                    <span
-                      className={cn(
-                        'text-right tabular-nums',
-                        isIncome
-                          ? rem >= 0
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-amber-700 dark:text-amber-300'
-                          : rem < 0
-                            ? 'text-destructive'
-                            : 'text-emerald-600 dark:text-emerald-400',
-                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      aria-label={`Editar orçado de ${row.name}`}
+                      onClick={() => {
+                        setEditingId(row.id)
+                        setDraft(String(row.budgeted))
+                      }}
                     >
-                      {formatCurrency(rem)}
-                    </span>
-                    <div className="flex justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        aria-label="Editar valor orçado"
-                        onClick={() => {
-                          setEditingId(row.id)
-                          setDraft(String(row.budgeted))
-                        }}
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  <div className="mt-2">
+                    <Progress
+                      value={linePct}
+                      className={cn(
+                        'h-1.5',
+                        row.rowTone === 'over' && '[&>div]:bg-destructive',
+                        row.rowTone === 'warn' && '[&>div]:bg-amber-500',
+                      )}
+                    />
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Orçado</p>
+                      {editingId === row.id ? (
+                        <Input
+                          className="mt-0.5 h-8 text-xs tabular-nums"
+                          inputMode="decimal"
+                          value={draft}
+                          autoFocus
+                          onChange={(e) => setDraft(e.target.value)}
+                          onBlur={() => {
+                            const n = parseMoneyBr(draft)
+                            if (Number.isFinite(n) && n >= 0) onBudgetedChange(row.id, n)
+                            setEditingId(null)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                          }}
+                        />
+                      ) : (
+                        <p className="font-semibold tabular-nums text-foreground">{formatCurrency(row.budgeted)}</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">{isIncome ? 'Recebido' : 'Gasto'}</p>
+                      <p className={cn('font-semibold tabular-nums', isIncome ? 'text-primary' : 'text-destructive')}>
+                        {formatCurrency(row.actual)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">{isIncome ? 'Saldo' : 'Restante'}</p>
+                      <p
+                        className={cn(
+                          'font-semibold tabular-nums',
+                          isIncome
+                            ? row.remaining >= 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-amber-700 dark:text-amber-300'
+                            : row.remaining < 0
+                              ? 'text-destructive'
+                              : 'text-emerald-600 dark:text-emerald-400',
+                        )}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                        {formatCurrency(row.remaining)}
+                      </p>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          </CardContent>
+                </div>
+              )
+            })}
+          </div>
         </CollapsibleContent>
-      </Card>
+      </div>
     </Collapsible>
   )
 }

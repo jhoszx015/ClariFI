@@ -118,9 +118,16 @@ export default function DashboardLayout({
   const dismissProfileReveal = useAuthStore((state) => state.dismissProfileReveal)
   const financeHydrated = useFinanceStore((state) => state.financeHydrated)
   const alerts = useFinanceStore((state) => state.alerts)
+  const transactionAlerts = useMemo(
+    () => alerts.filter((a) => a.category === 'transaction'),
+    [alerts],
+  )
   const markAlertAsRead = useFinanceStore((state) => state.markAlertAsRead)
 
-  const unreadAlerts = useMemo(() => alerts.filter((a) => !a.isRead).length, [alerts])
+  const unreadAlerts = useMemo(
+    () => transactionAlerts.filter((a) => !a.isRead).length,
+    [transactionAlerts],
+  )
   const showWelcome = Boolean(user && user.onboardingCompleted !== true)
   const isMobile = useIsMobile()
 
@@ -336,10 +343,10 @@ export default function DashboardLayout({
             <DropdownMenuContent align="end" className="w-80">
               <DropdownMenuLabel>Notificações</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {alerts.length === 0 ? (
+              {transactionAlerts.length === 0 ? (
                 <DropdownMenuItem disabled>Nenhum alerta disponível</DropdownMenuItem>
               ) : (
-                alerts.slice(0, 5).map((alert) => (
+                transactionAlerts.slice(0, 5).map((alert) => (
                   <DropdownMenuItem
                     key={alert.id}
                     className="cursor-pointer"
@@ -350,15 +357,14 @@ export default function DashboardLayout({
                   >
                     <div className="flex flex-col gap-1">
                       <span className={!alert.isRead ? 'font-medium' : ''}>{alert.title}</span>
-                      <span className="line-clamp-2 text-xs text-muted-foreground">{alert.message}</span>
                     </div>
                   </DropdownMenuItem>
                 ))
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/coach" className="justify-center text-sm text-primary">
-                  Ver todas as recomendações →
+                <Link href="/dashboard/transacoes" className="justify-center text-sm text-primary">
+                  Ver transações →
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>

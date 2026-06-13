@@ -82,7 +82,9 @@ export function IntroSplash({ onComplete }: IntroSplashProps) {
         </m.div>
         <div className="text-center">
           <p className="text-3xl font-semibold tracking-tight sm:text-4xl">ClariFI</p>
-          <p className="mt-2 text-sm font-medium tracking-[0.2em] text-zinc-400 uppercase">Gestão inteligente</p>
+          <p className="mt-2 text-sm font-medium tracking-[0.2em] text-zinc-400 uppercase">
+            Gestão inteligente
+          </p>
         </div>
       </m.div>
     </m.div>

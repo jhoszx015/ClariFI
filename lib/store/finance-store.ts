@@ -8,13 +8,12 @@ import type {
   BankConnection,
   ConsumptionRestriction,
   TransactionCategory,
-  AlertCategory,
-  AlertType,
   HouseholdMember,
   BehaviorHistoryPoint,
   HouseholdInvite,
   AccountBucketsState,
   AssetBucketKey,
+  CreditCardAccount,
 } from '@/types'
 import { DEFAULT_BUCKET_ORDER } from '@/types'
 import { buildMonthlyInsights } from '@/lib/analytics/finance-insights'
@@ -46,6 +45,25 @@ function normalizeBucketOrder(bo: unknown): AssetBucketKey[] {
     DEFAULT_BUCKET_ORDER.includes(k as AssetBucketKey),
   )
   return [...filtered, ...DEFAULT_BUCKET_ORDER.filter((k) => !filtered.includes(k))]
+}
+
+function formatAlertAmount(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function createTransactionAlert(transaction: Transaction): Alert {
+  const isIncome = transaction.type === 'income'
+  const amount = formatAlertAmount(transaction.amount)
+  return {
+    id: `${Date.now()}-tx-${transaction.id}`,
+    type: isIncome ? 'success' : 'info',
+    category: 'transaction',
+    title: isIncome ? `Entrada de ${amount}` : `Saída de ${amount}`,
+    message: '',
+    createdAt: new Date(),
+    isRead: false,
+    actionUrl: '/dashboard/transacoes',
+  }
 }
 
 function normalizeAccountBuckets(ab: unknown): AccountBucketsState {
@@ -90,11 +108,19 @@ interface FinanceState {
   budgetBudgetedByLineId: Record<string, number>
   /** Limite do cartão principal (R$), configurável pelo usuário. */
   creditCardLimit: number
+  /** Cartões de crédito cadastrados na aba Cartão. */
+  creditCards: CreditCardAccount[]
   /** Renda mensal esperada para referência no orçamento (R$). */
   expectedMonthlyIncome: number
   /** Meses com fatura marcada como paga (`YYYY-MM`). */
   invoicePaidMonths: string[]
   setCreditCardLimit: (limit: number) => void
+  addCreditCard: (card: { name: string; cardNumber: string; cvc: string; expiry: string }) => void
+  updateCreditCard: (
+    id: string,
+    updates: Partial<{ name: string; cardNumber: string; cvc: string; expiry: string }>,
+  ) => void
+  removeCreditCard: (id: string) => void
   setExpectedMonthlyIncome: (value: number) => void
   markInvoicePaid: (monthKey: string) => void
   setBudgetLineBudgeted: (lineId: string, budgeted: number) => void
@@ -218,12 +244,64 @@ export const useFinanceStore = create<FinanceState>()(
         }
       },
       creditCardLimit: 5000,
+      creditCards: [],
       expectedMonthlyIncome: 0,
       invoicePaidMonths: [],
       setCreditCardLimit: (limit) => {
         const v = Math.max(0, Number(limit))
         if (!Number.isFinite(v)) return
         set({ creditCardLimit: v })
+      },
+      addCreditCard: ({ name, cardNumber, cvc, expiry }) => {
+        const trimmed = name.trim()
+        const digits = cardNumber.replace(/\D/g, '')
+        const cvcDigits = cvc.replace(/\D/g, '')
+        const expiryNorm = expiry.trim()
+        if (!trimmed || digits.length < 13 || cvcDigits.length < 3 || !/^\d{2}\/\d{2}$/.test(expiryNorm)) {
+          return
+        }
+        const id = `cc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+        const card: CreditCardAccount = {
+          id,
+          name: trimmed,
+          cardNumber: digits,
+          cvc: cvcDigits,
+          expiry: expiryNorm,
+          createdAt: new Date(),
+        }
+        set((state) => ({
+          creditCards: [...state.creditCards, card],
+        }))
+      },
+      updateCreditCard: (id, updates) => {
+        set((state) => ({
+          creditCards: state.creditCards.map((c) => {
+            if (c.id !== id) return c
+            const next = { ...c }
+            if (updates.name !== undefined) {
+              const trimmed = updates.name.trim()
+              if (trimmed) next.name = trimmed
+            }
+            if (updates.cardNumber !== undefined) {
+              const digits = updates.cardNumber.replace(/\D/g, '')
+              if (digits.length >= 13) next.cardNumber = digits
+            }
+            if (updates.cvc !== undefined) {
+              const cvcDigits = updates.cvc.replace(/\D/g, '')
+              if (cvcDigits.length >= 3) next.cvc = cvcDigits
+            }
+            if (updates.expiry !== undefined) {
+              const expiryNorm = updates.expiry.trim()
+              if (/^\d{2}\/\d{2}$/.test(expiryNorm)) next.expiry = expiryNorm
+            }
+            return next
+          }),
+        }))
+      },
+      removeCreditCard: (id) => {
+        set((state) => ({
+          creditCards: state.creditCards.filter((c) => c.id !== id),
+        }))
       },
       setExpectedMonthlyIncome: (value) => {
         const v = Math.max(0, Number(value))
@@ -359,8 +437,6 @@ export const useFinanceStore = create<FinanceState>()(
           return { categoryLimits: next }
         })
 
-        // When limits change, re-evaluate alerts.
-        get().ensureIntelligentAlerts(new Date())
       },
 
       setHouseholdEnabled: (enabled) => set({ householdEnabled: enabled }),
@@ -422,49 +498,22 @@ export const useFinanceStore = create<FinanceState>()(
           id: String(Date.now()),
         }
         
-        // Check for impulse
         const impulseCheck = get().detectImpulse(newTransaction)
         if (impulseCheck.isImpulsive) {
           newTransaction.isImpulsive = true
           newTransaction.impulsiveScore = impulseCheck.score
-
-          const inc = get().dashboardSummary.monthlyIncome
-          const incomeOk = Number.isFinite(inc) && inc > 0
-          let message =
-            impulseCheck.reason ||
-            `Gasto de R$ ${newTransaction.amount.toFixed(2)} em ${newTransaction.category} foi identificado como potencialmente impulsivo.`
-          if (!incomeOk && !/(renda|percentual|%)/i.test(message)) {
-            message =
-              `${message.trim()} Cadastre sua renda mensal para ver o impacto em relação ao que você ganha.`
-          }
-
-          // Add alert
-          const newAlert: Alert = {
-            id: String(Date.now()),
-            type: impulseCheck.score > 70 ? 'danger' : 'warning',
-            category: 'impulse',
-            title: 'Compra potencialmente impulsiva detectada',
-            message,
-            createdAt: new Date(),
-            isRead: false,
-            actionUrl: '/dashboard/transacoes',
-          }
-          
-          set((state) => ({
-            alerts: [newAlert, ...state.alerts],
-          }))
         }
-        
+
+        const txAlert = createTransactionAlert(newTransaction)
+
         set((state) => {
           const nextTransactions = [newTransaction, ...state.transactions]
           return {
             transactions: nextTransactions,
             dashboardSummary: calculateDashboardSummary(nextTransactions),
+            alerts: [txAlert, ...state.alerts],
           }
         })
-
-        // After new data, re-evaluate intelligent alerts.
-        get().ensureIntelligentAlerts(new Date())
       },
 
       deleteTransaction: (id) => {
@@ -540,68 +589,8 @@ export const useFinanceStore = create<FinanceState>()(
         }))
       },
 
-      ensureIntelligentAlerts: (referenceDate) => {
-        const ref = referenceDate ?? new Date()
-        const state = get()
-        const insights = state.getMonthlyInsights(ref)
-
-        const nextAlerts: Alert[] = []
-        const dedupeKey = (category: AlertCategory, title: string) => `${category}:${title}`
-        const existing = new Set(state.alerts.map((a) => dedupeKey(a.category, a.title)))
-
-        // Forecast indicates negative balance
-        if (insights.riskNegative) {
-          const title = 'Previsão de saldo negativo'
-          if (!existing.has(dedupeKey('budget', title))) {
-            nextAlerts.push({
-              id: String(Date.now()) + '-forecast',
-              type: 'danger' as AlertType,
-              category: 'budget',
-              title,
-              message:
-                'Pelo seu ritmo atual de entradas e saídas, você pode terminar o mês no negativo. Reveja limites por categoria e despesas recorrentes.',
-              createdAt: new Date(),
-              isRead: false,
-              actionUrl: '/dashboard/controle',
-            })
-          }
-        }
-
-        // Category limit reached / exceeded
-        const limits = state.categoryLimits
-        ;(Object.keys(limits) as TransactionCategory[]).forEach((cat) => {
-          const limit = limits[cat]
-          if (!limit || limit <= 0) return
-          const spent = state.getExpenseInMonthForCategory(cat, ref)
-          const pct = (spent / limit) * 100
-          const exceeded = pct >= 100
-          const near = pct >= 90 && pct < 100
-          if (!near && !exceeded) return
-
-          const title = exceeded
-            ? `Limite estourado em ${cat}`
-            : `Limite chegando em ${cat}`
-          if (existing.has(dedupeKey('budget', title))) return
-
-          nextAlerts.push({
-            id: String(Date.now()) + `-limit-${cat}`,
-            type: (exceeded ? 'danger' : 'warning') as AlertType,
-            category: 'budget',
-            title,
-            message: exceeded
-              ? `Você já passou do limite mensal de ${cat}. Considere pausar gastos nessa categoria e ajustar travas.`
-              : `Você atingiu ${pct.toFixed(0)}% do limite mensal de ${cat}. Ajuste hábitos agora para evitar estourar o orçamento.`,
-            createdAt: new Date(),
-            isRead: false,
-            actionUrl: '/dashboard/controle',
-          })
-        })
-
-        if (nextAlerts.length > 0) {
-          set((s) => ({
-            alerts: [...nextAlerts, ...s.alerts],
-          }))
-        }
+      ensureIntelligentAlerts: () => {
+        // Alertas automáticos limitados a entradas/saídas em addTransaction.
       },
 
       // Recommendation actions
@@ -778,10 +767,12 @@ export const useFinanceStore = create<FinanceState>()(
           deadline: toDateOrFallback(g.deadline),
           createdAt: toDateOrFallback(g.createdAt),
         }))
-        const normalizedAlerts = (p.alerts ?? empty.alerts).map((a) => ({
-          ...a,
-          createdAt: toDateOrFallback(a.createdAt),
-        }))
+        const normalizedAlerts = (p.alerts ?? empty.alerts)
+          .filter((a) => a.category === 'transaction')
+          .map((a) => ({
+            ...a,
+            createdAt: toDateOrFallback(a.createdAt),
+          }))
         const normalizedRecommendations = (p.recommendations ?? empty.recommendations).map((r) => ({
           ...r,
           createdAt: toDateOrFallback(r.createdAt),
@@ -837,10 +828,16 @@ export const useFinanceStore = create<FinanceState>()(
           invoicePaidMonths: Array.isArray((p as { invoicePaidMonths?: string[] }).invoicePaidMonths)
             ? (p as { invoicePaidMonths: string[] }).invoicePaidMonths
             : [],
+          creditCards: Array.isArray((p as { creditCards?: CreditCardAccount[] }).creditCards)
+            ? (p as { creditCards: CreditCardAccount[] }).creditCards.map((c) => ({
+                ...c,
+                createdAt: toDateOrFallback(c.createdAt),
+              }))
+            : [],
           dashboardSummary: calculateDashboardSummary(normalizedTransactions),
         }
       },
-      version: 11,
+      version: 13,
       migrate: (persistedState, version) => {
         let state = (persistedState ?? {}) as Record<string, unknown>
         if (version < 5) {
@@ -900,6 +897,36 @@ export const useFinanceStore = create<FinanceState>()(
               : [],
           }
         }
+        if (version < 12) {
+          state = {
+            ...state,
+            creditCards: Array.isArray(state.creditCards) ? state.creditCards : [],
+          }
+        }
+        if (version < 13) {
+          const legacy = Array.isArray(state.creditCards) ? state.creditCards : []
+          state = {
+            ...state,
+            creditCards: legacy
+              .map((raw) => {
+                const c = raw as Record<string, unknown>
+                if (typeof c.cardNumber === 'string' && typeof c.cvc === 'string' && typeof c.expiry === 'string') {
+                  return raw as CreditCardAccount
+                }
+                const lastFour =
+                  typeof c.lastFourDigits === 'string' ? c.lastFourDigits.replace(/\D/g, '').slice(-4) : '0000'
+                return {
+                  id: String(c.id ?? `cc-${Date.now()}`),
+                  name: String(c.name ?? 'Cartão'),
+                  cardNumber: `000000000000${lastFour}`.slice(-16),
+                  cvc: '000',
+                  expiry: '12/30',
+                  createdAt: c.createdAt ?? new Date(),
+                } satisfies CreditCardAccount
+              })
+              .filter(Boolean),
+          }
+        }
         return state as unknown as FinanceState
       },
       partialize: (state) => ({
@@ -921,6 +948,7 @@ export const useFinanceStore = create<FinanceState>()(
         bucketOrder: state.bucketOrder,
         budgetBudgetedByLineId: state.budgetBudgetedByLineId,
         creditCardLimit: state.creditCardLimit,
+        creditCards: state.creditCards,
         expectedMonthlyIncome: state.expectedMonthlyIncome,
         invoicePaidMonths: state.invoicePaidMonths,
       }),

@@ -62,8 +62,15 @@ export default function DashboardPage() {
     recordBehaviorSnapshot()
   }, [recordBehaviorSnapshot])
 
+  const transactionAlerts = useMemo(
+    () => alerts.filter((a) => a.category === 'transaction'),
+    [alerts],
+  )
   const recentTransactions = useMemo(() => transactions.slice(0, 4), [transactions])
-  const unreadAlerts = useMemo(() => alerts.filter((a) => !a.isRead).slice(0, 3), [alerts])
+  const unreadAlerts = useMemo(
+    () => transactionAlerts.filter((a) => !a.isRead).slice(0, 3),
+    [transactionAlerts],
+  )
   const topRecommendation = recommendations.find((r) => !r.isActioned && r.priority === 'high')
   const firstName = userName?.split(' ')[0] || 'Usuário'
 
@@ -435,7 +442,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Alertas</CardTitle>
-            <CardDescription>Notificações importantes sobre suas finanças</CardDescription>
+            <CardDescription>Entradas e saídas registradas recentemente</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {unreadAlerts.length > 0 ? (
@@ -449,7 +456,6 @@ export default function DashboardPage() {
                     <Icon className="mt-0.5 h-5 w-5 shrink-0" />
                     <div className="flex-1">
                       <p className="font-medium">{alert.title}</p>
-                      <p className="text-sm opacity-80">{alert.message}</p>
                     </div>
                   </div>
                 )

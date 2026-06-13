@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useFinanceStore } from '@/lib/store/finance-store'
 import { DashboardPanelBack } from '@/components/clarifi/dashboard-panel-back'
+import { useAiAssistant } from '@/components/clarifi/ai-assistant-context'
 import { useAuthStore } from '@/lib/store/auth-store'
 import {
   Sparkles,
@@ -16,8 +17,8 @@ import {
   Lightbulb,
   ArrowRight,
   AlertTriangle,
+  Bell,
 } from 'lucide-react'
-import Link from 'next/link'
 
 const categoryIcons = {
   savings: PiggyBank,
@@ -34,6 +35,7 @@ const priorityStyles = {
 }
 
 export default function CoachPage() {
+  const { setOpen: openAiAssistant } = useAiAssistant()
   const user = useAuthStore((state) => state.user)
   const recommendations = useFinanceStore((state) => state.recommendations)
   const markRecommendationActioned = useFinanceStore((state) => state.markRecommendationActioned)
@@ -52,7 +54,7 @@ export default function CoachPage() {
   const goalsProgress = goals.length > 0
     ? goals.reduce((sum, g) => sum + (g.currentAmount / g.targetAmount) * 100, 0) / goals.length
     : 0
-  const impulsiveAlerts = alerts.filter((a) => a.category === 'impulse').length
+  const transactionAlerts = alerts.filter((a) => a.category === 'transaction')
 
   return (
     <div className="space-y-6">
@@ -80,12 +82,10 @@ export default function CoachPage() {
                 </p>
               </div>
             </div>
-            <Link href="/dashboard/assistente-ia">
-              <Button variant="outline" className="gap-2">
-                Abrir assistente (chat)
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+            <Button type="button" variant="outline" className="gap-2" onClick={() => openAiAssistant(true)}>
+              Abrir assistente (chat)
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -127,16 +127,14 @@ export default function CoachPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Alertas de Impulso
+              Notificações recentes
             </CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <Bell className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${impulsiveAlerts > 2 ? 'text-destructive' : 'text-primary'}`}>
-              {impulsiveAlerts}
-            </div>
+            <div className="text-2xl font-bold text-primary">{transactionAlerts.length}</div>
             <p className="text-xs text-muted-foreground">
-              Compras impulsivas detectadas
+              Entradas e saídas registradas
             </p>
           </CardContent>
         </Card>
@@ -147,18 +145,17 @@ export default function CoachPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-600" />
-              <CardTitle>Alertas e pontos de atenção</CardTitle>
+              <CardTitle>Entradas e saídas</CardTitle>
             </div>
-            <CardDescription>Priorize o que pode mudar seu mês agora</CardDescription>
+            <CardDescription>Notificações das transações registradas</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {alerts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem alertas registrados.</p>
+            {transactionAlerts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sem notificações registradas.</p>
             ) : (
-              alerts.slice(0, 5).map((a) => (
+              transactionAlerts.slice(0, 5).map((a) => (
                 <div key={a.id} className="rounded-lg border border-border/50 bg-muted/20 p-3 text-sm">
                   <p className="font-medium text-foreground">{a.title}</p>
-                  <p className="mt-1 text-muted-foreground">{a.message}</p>
                 </div>
               ))
             )}

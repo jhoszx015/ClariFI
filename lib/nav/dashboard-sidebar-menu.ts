@@ -57,7 +57,12 @@ export const DASHBOARD_SIDEBAR_MENU: SidebarNavGroupDef[] = [
     items: [
       { title: 'Diagnóstico', href: '/dashboard/diagnostico', icon: Brain },
       { title: 'Coach financeiro', href: '/dashboard/coach', icon: Sparkles },
-      { title: 'Assistente de IA', href: '/dashboard/assistente-ia', icon: Bot },
+      {
+        title: 'Assistente de IA',
+        href: '/dashboard/assistente-ia',
+        icon: Bot,
+        behavior: 'open-ai-assistant',
+      },
     ],
   },
   {

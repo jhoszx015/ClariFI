@@ -73,6 +73,16 @@ export default function CompartilhadoPage() {
     }))
   }, [householdMembers, summary.byMember])
 
+  const compareMax = useMemo(
+    () => Math.max(...compareData.map((d) => d.Gastos), 1),
+    [compareData],
+  )
+
+  const formatCompareAxis = (value: number) => {
+    if (compareMax >= 1000) return `${(value / 1000).toFixed(1)}k`
+    return formatCurrency(value)
+  }
+
   const insights = getMonthlyInsights()
   const jointOver =
     householdEnabled &&
@@ -247,16 +257,29 @@ export default function CompartilhadoPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={compareData} layout="vertical" margin={{ top: 8, right: 16, left: 4, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.6} horizontal={false} />
-                    <XAxis type="number" tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
+                    <XAxis
+                      type="number"
+                      domain={[0, compareMax * 1.15]}
+                      tickFormatter={formatCompareAxis}
+                      tick={{ fontSize: 11 }}
+                    />
                     <YAxis type="category" dataKey="nome" width={88} tick={{ fontSize: 12 }} />
                     <Tooltip
-                      cursor={{ fill: 'hsl(0 0% 100% / 0.04)' }}
-                      formatter={(v: number) => [formatCurrency(v), 'Gastos no mês']}
-                      contentStyle={{
-                        background: 'var(--card)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 8,
-                        color: 'var(--foreground)',
+                      cursor={{ fill: 'var(--muted)', fillOpacity: 0.35 }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null
+                        const row = payload[0].payload as { nome: string; Gastos: number }
+                        return (
+                          <div className="rounded-lg border border-border/80 bg-card px-3 py-2.5 shadow-lg">
+                            <p className="text-sm font-medium text-foreground">{row.nome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Gastos no mês:{' '}
+                              <span className="font-semibold tabular-nums text-foreground">
+                                {formatCurrency(row.Gastos)}
+                              </span>
+                            </p>
+                          </div>
+                        )
                       }}
                     />
                     <Legend content={() => null} />

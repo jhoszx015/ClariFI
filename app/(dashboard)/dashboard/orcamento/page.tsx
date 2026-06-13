@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +14,7 @@ import {
 } from '@/lib/data/budget-monarch'
 import { BudgetMonarchGroup, type ResolvedBudgetLine } from '@/components/clarifi/budget-monarch-group'
 import { DashboardPanelBack } from '@/components/clarifi/dashboard-panel-back'
-import { PieChart, RotateCcw } from 'lucide-react'
+import { AlertCircle, PieChart, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const formatCurrency = (value: number) =>
@@ -62,11 +62,11 @@ export default function OrcamentoPage() {
 
   const ref = useMemo(() => new Date(), [])
 
-  const { groupsWithLines, insights, monthExpense, monthIncome, monthSavings } = useMemo(() => {
-    const income = dashboardSummary.monthlyIncome
-    const expense = dashboardSummary.monthlyExpenses
-    const savings = dashboardSummary.monthlySavings
-    const map = new Map<string, { budgeted: number; actual: number; name: string; groupId: (typeof BUDGET_TEMPLATE)[number]['id'] }>()
+  const { groupsWithLines, insights, monthExpense, monthIncome, monthSavings, planSummary } = useMemo(() => {
+    const map = new Map<
+      string,
+      { budgeted: number; actual: number; name: string; groupId: (typeof BUDGET_TEMPLATE)[number]['id'] }
+    >()
     const gwl = BUDGET_TEMPLATE.map((g) => {
       const lines = resolveLines(g, transactions, ref, overrides)
       for (const ln of lines) {
@@ -79,187 +79,156 @@ export default function OrcamentoPage() {
       }
       return { group: g, lines }
     })
-    return {
-      groupsWithLines: gwl,
-      insights: buildBudgetInsights(BUDGET_TEMPLATE, map),
-      monthIncome: income,
-      monthExpense: expense,
-      monthSavings: savings,
-    }
-  }, [dashboardSummary, transactions, ref, overrides])
 
-  const sidebar = useMemo(() => {
-    const expenseGroups = BUDGET_TEMPLATE.filter((g) => g.id !== 'renda')
     let totalBudgeted = 0
     let totalActual = 0
-    for (const g of expenseGroups) {
+    for (const g of BUDGET_TEMPLATE) {
+      if (g.id === 'renda') continue
       for (const line of g.lines) {
-        const b = overrides[line.id] ?? line.defaultBudgeted
-        totalBudgeted += b
+        totalBudgeted += overrides[line.id] ?? line.defaultBudgeted
         totalActual += metricActual(line.metric, transactions, ref)
       }
     }
+
     return {
-      totalBudgeted,
-      totalActual,
-      remaining: totalBudgeted - totalActual,
+      groupsWithLines: gwl,
+      insights: buildBudgetInsights(BUDGET_TEMPLATE, map),
+      monthIncome: dashboardSummary.monthlyIncome,
+      monthExpense: dashboardSummary.monthlyExpenses,
+      monthSavings: dashboardSummary.monthlySavings,
+      planSummary: {
+        totalBudgeted,
+        totalActual,
+        remaining: totalBudgeted - totalActual,
+      },
     }
-  }, [transactions, ref, overrides])
+  }, [dashboardSummary, transactions, ref, overrides])
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="mx-auto max-w-3xl space-y-6 pb-8">
       <DashboardPanelBack />
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-primary">
-            <PieChart className="h-8 w-8" />
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Orçamento</h1>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+            <PieChart className="h-5 w-5 text-primary" />
           </div>
-          <p className="max-w-2xl text-muted-foreground">
-            Controle mensal por blocos: renda, fixo, variável, não mensal e metas. Expanda cada grupo, ajuste o
-            orçado e acompanhe o real automaticamente nas linhas ligadas às transações.
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Orçamento</h1>
+            <p className="text-sm text-muted-foreground">Plano mensal por blocos</p>
+          </div>
         </div>
-        <Button type="button" variant="outline" size="sm" className="shrink-0 gap-2" onClick={() => resetBudgetOverrides()}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={() => resetBudgetOverrides()}
+        >
           <RotateCcw className="h-4 w-4" />
-          Restaurar orçados padrão
+          Restaurar padrão
         </Button>
       </div>
 
-      <Card className="border-border/60">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Renda mensal esperada</CardTitle>
-          <CardDescription>
-            Informe sua renda de referência para ver cada categoria do orçamento como % da renda.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="max-w-xs space-y-2">
-            <Label htmlFor="expected-income">Valor (R$)</Label>
-            <Input
-              id="expected-income"
-              type="number"
-              min={0}
-              step="0.01"
-              placeholder="Ex.: 8000"
-              value={expectedMonthlyIncome > 0 ? expectedMonthlyIncome : ''}
-              onChange={(e) => {
-                const raw = e.target.value
-                setExpectedMonthlyIncome(raw === '' ? 0 : parseFloat(raw) || 0)
-              }}
-            />
-          </div>
+      <Card className="overflow-hidden border-border/60">
+        <CardContent className="grid gap-px bg-border/50 p-0 sm:grid-cols-4">
+          {[
+            {
+              label: 'Renda (mês)',
+              value: formatCurrency(monthIncome),
+              valueClass: 'text-primary',
+            },
+            {
+              label: 'Despesas (mês)',
+              value: formatCurrency(monthExpense),
+              valueClass: 'text-destructive',
+            },
+            {
+              label: 'Sobra',
+              value: formatCurrency(monthSavings),
+              valueClass:
+                monthSavings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
+            },
+            {
+              label: 'Saldo do plano',
+              value: formatCurrency(planSummary.remaining),
+              valueClass:
+                planSummary.remaining >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="flex flex-col items-center justify-center bg-card px-4 py-5 text-center"
+            >
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+              <p className={cn('mt-1.5 text-xl font-bold tabular-nums', item.valueClass)}>{item.value}</p>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardDescription>Renda (mês)</CardDescription>
-                <CardTitle className="text-xl text-primary">{formatCurrency(monthIncome)}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardDescription>Despesas (mês)</CardDescription>
-                <CardTitle className="text-xl text-destructive">{formatCurrency(monthExpense)}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardDescription>Sobra</CardDescription>
-                <CardTitle
-                  className={cn(
-                    'text-xl',
-                    monthSavings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
-                  )}
-                >
-                  {formatCurrency(monthSavings)}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-          </div>
-
-          <div className="space-y-4">
-            {groupsWithLines.map(({ group, lines }) => (
-              <BudgetMonarchGroup
-                key={group.id}
-                group={group}
-                lines={lines}
-                expectedMonthlyIncome={expectedMonthlyIncome}
-                onBudgetedChange={(lineId, v) => setBudgetLineBudgeted(lineId, v)}
-              />
-            ))}
-          </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <div className="space-y-1">
+          <Label htmlFor="expected-income" className="text-sm">
+            Renda mensal de referência <span className="font-normal text-muted-foreground">(opcional)</span>
+          </Label>
+          <p className="text-xs text-muted-foreground">Usada para mostrar cada linha como % da renda.</p>
         </div>
+        <Input
+          id="expected-income"
+          type="number"
+          min={0}
+          step="0.01"
+          placeholder="Ex.: 8000"
+          className="w-full sm:max-w-[200px]"
+          value={expectedMonthlyIncome > 0 ? expectedMonthlyIncome : ''}
+          onChange={(e) => {
+            const raw = e.target.value
+            setExpectedMonthlyIncome(raw === '' ? 0 : parseFloat(raw) || 0)
+          }}
+        />
+      </div>
 
-        <aside className="space-y-4">
-          <Card className="border-border/60 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Resumo do mês</CardTitle>
-              <CardDescription>Despesas planejadas (exceto renda)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 px-6 pb-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total orçado</span>
-                <span className="font-semibold tabular-nums">{formatCurrency(sidebar.totalBudgeted)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total real</span>
-                <span className="font-semibold tabular-nums text-destructive">
-                  {formatCurrency(sidebar.totalActual)}
-                </span>
-              </div>
-              <div className="border-t border-border/50 pt-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Saldo do plano</span>
-                  <span
-                    className={cn(
-                      'font-semibold tabular-nums',
-                      sidebar.remaining >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
-                    )}
-                  >
-                    {formatCurrency(sidebar.remaining)}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Linhas “fixo” e similares usam valores de referência; variável puxa das categorias nas transações.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+      {insights.length > 0 && (
+        <div className="space-y-2">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <AlertCircle className="h-3.5 w-3.5" />
+            Alertas do mês
+          </p>
+          <ul className="space-y-2">
+            {insights.map((ins, i) => (
+              <li
+                key={i}
+                className={cn(
+                  'rounded-lg border px-3 py-2.5 text-sm leading-snug',
+                  ins.tone === 'bad' && 'border-destructive/40 bg-destructive/10 text-destructive',
+                  ins.tone === 'warn' &&
+                    'border-amber-500/35 bg-amber-500/10 text-amber-950 dark:text-amber-100',
+                  ins.tone === 'good' &&
+                    'border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100',
+                  ins.tone === 'neutral' && 'border-border/60 bg-muted/30 text-foreground',
+                )}
+              >
+                {ins.text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-          <Card className="border-primary/20 bg-primary/5 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Insights automáticos</CardTitle>
-              <CardDescription>Leitura rápida do seu mês</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 px-6 pb-6">
-              {insights.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Sem alertas por enquanto — continue registrando gastos.</p>
-              ) : (
-                <ul className="space-y-2 text-sm">
-                  {insights.map((ins, i) => (
-                    <li
-                      key={i}
-                      className={cn(
-                        'rounded-lg border px-3 py-2',
-                        ins.tone === 'bad' && 'border-destructive/40 bg-destructive/10 text-destructive',
-                        ins.tone === 'warn' && 'border-amber-500/35 bg-amber-500/10 text-amber-950 dark:text-amber-100',
-                        ins.tone === 'good' && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100',
-                        ins.tone === 'neutral' && 'border-border/60 bg-card text-foreground',
-                      )}
-                    >
-                      {ins.text}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </aside>
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Detalhar por bloco</p>
+        <div className="space-y-2">
+          {groupsWithLines.map(({ group, lines }) => (
+            <BudgetMonarchGroup
+              key={group.id}
+              group={group}
+              lines={lines}
+              expectedMonthlyIncome={expectedMonthlyIncome}
+              onBudgetedChange={(lineId, v) => setBudgetLineBudgeted(lineId, v)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )

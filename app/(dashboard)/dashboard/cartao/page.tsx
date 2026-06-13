@@ -9,13 +9,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useFinanceStore } from '@/lib/store/finance-store'
 import type { Transaction } from '@/types'
 import { CreditCardExpenseDialog } from '@/components/clarifi/credit-card-expense-dialog'
+import { CreditCardAddDialog, maskCardNumber } from '@/components/clarifi/credit-card-add-dialog'
 import { DashboardPanelBack } from '@/components/clarifi/dashboard-panel-back'
 import { DEFAULT_CREDIT_CARD_LIMIT, highSpendThreshold } from '@/lib/data/credit-card-config'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { buildCreditCardInsights } from '@/lib/analytics/credit-card-insights'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, CreditCard, Eye, Gauge, Receipt, Wallet } from 'lucide-react'
+import type { CreditCardAccount } from '@/types'
+import { AlertTriangle, CreditCard, Eye, Gauge, Pencil, Plus, Receipt, Trash2, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 
 const formatCurrency = (value: number) =>
@@ -44,11 +44,11 @@ function isCardExpense(t: Transaction) {
   return t.type === 'expense' && t.paymentMethod === 'cartao_credito'
 }
 
-function closingDate(ref: Date) {
+function closingDateForDay(ref: Date, closingDay: number) {
   const y = ref.getFullYear()
   const m = ref.getMonth()
   const last = new Date(y, m + 1, 0).getDate()
-  const day = Math.min(CLOSING_DAY, last)
+  const day = Math.min(closingDay, last)
   return new Date(y, m, day)
 }
 
@@ -75,11 +75,17 @@ const insightStyles = {
 export default function CartaoCreditoPage() {
   const transactions = useFinanceStore((s) => s.transactions)
   const creditCardLimit = useFinanceStore((s) => s.creditCardLimit)
-  const setCreditCardLimit = useFinanceStore((s) => s.setCreditCardLimit)
+  const creditCards = useFinanceStore((s) => s.creditCards) ?? []
+  const removeCreditCard = useFinanceStore((s) => s.removeCreditCard)
   const invoicePaidMonths = useFinanceStore((s) => s.invoicePaidMonths)
   const markInvoicePaid = useFinanceStore((s) => s.markInvoicePaid)
   const [addOpen, setAddOpen] = useState(false)
-  const [limitInput, setLimitInput] = useState(String(creditCardLimit || DEFAULT_CREDIT_CARD_LIMIT))
+  const [addCardOpen, setAddCardOpen] = useState(false)
+  const [editingCard, setEditingCard] = useState<CreditCardAccount | null>(null)
+
+  const effectiveLimit = creditCardLimit > 0 ? creditCardLimit : DEFAULT_CREDIT_CARD_LIMIT
+
+  const primaryClosingDay = CLOSING_DAY
 
   const {
     now,
@@ -97,7 +103,7 @@ export default function CartaoCreditoPage() {
     insights,
   } = useMemo(() => {
     const ref = new Date()
-    const closeD = closingDate(ref)
+    const closeD = closingDateForDay(ref, primaryClosingDay)
     const dueD = dueDateFromClosing(closeD)
     const untilDue = daysBetween(ref, dueD)
     const y = ref.getFullYear()
@@ -114,7 +120,7 @@ export default function CartaoCreditoPage() {
 
     const inv = cardTx.reduce((s, t) => s + t.amount, 0)
     const used = inv
-    const limit = creditCardLimit > 0 ? creditCardLimit : DEFAULT_CREDIT_CARD_LIMIT
+    const limit = effectiveLimit
     const avail = Math.max(0, limit - used)
     const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0
 
@@ -156,7 +162,7 @@ export default function CartaoCreditoPage() {
       groupedByDate: Array.from(map.entries()),
       insights: ins,
     }
-  }, [transactions, creditCardLimit])
+  }, [transactions, effectiveLimit, primaryClosingDay])
 
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const invoicePaid = invoicePaidMonths.includes(monthKey)
@@ -169,49 +175,112 @@ export default function CartaoCreditoPage() {
 
   const faturaStatus: FaturaStatus = invoicePaid ? 'paga' : startOfDay(now) <= startOfDay(close) ? 'aberta' : 'fechada'
 
-  const limitTotal = creditCardLimit > 0 ? creditCardLimit : DEFAULT_CREDIT_CARD_LIMIT
+  const limitTotal = effectiveLimit
   const highThreshold = highSpendThreshold(limitTotal)
 
   return (
     <div className="relative mx-auto max-w-4xl space-y-6 pb-24 md:pb-6">
       <DashboardPanelBack />
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 text-primary">
-          <CreditCard className="h-8 w-8" />
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Cartão de crédito</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-primary">
+            <CreditCard className="h-8 w-8" />
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Cartão de crédito</h1>
+          </div>
+          <p className="max-w-2xl text-muted-foreground">
+            Veja limite, fatura e compras recentes em um só lugar — linguagem simples, sem simulações complicadas.
+          </p>
         </div>
-        <p className="max-w-2xl text-muted-foreground">
-          Veja limite, fatura e compras recentes em um só lugar — linguagem simples, sem simulações complicadas.
-        </p>
+        <Button
+          type="button"
+          className="w-full shrink-0 gap-2 shadow-sm sm:w-auto"
+          onClick={() => {
+            setEditingCard(null)
+            setAddCardOpen(true)
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          Adicionar cartão
+        </Button>
       </div>
 
       <Card className="border-border/60 shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Seu limite de crédito</CardTitle>
-          <CardDescription>Informe o limite do cartão para calcular uso e disponível com precisão.</CardDescription>
+          <CardTitle className="text-base">Meus cartões</CardTitle>
+          <CardDescription>
+            {creditCards.length === 0
+              ? 'Cadastre seu cartão com nome, número, CVC e validade.'
+              : `${creditCards.length} cartão${creditCards.length > 1 ? 'ões' : ''} cadastrado${creditCards.length > 1 ? 's' : ''}`}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1 space-y-2">
-            <Label htmlFor="card-limit">Limite (R$)</Label>
-            <Input
-              id="card-limit"
-              type="number"
-              min={0}
-              step={100}
-              value={limitInput}
-              onChange={(e) => setLimitInput(e.target.value)}
-            />
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => {
-              const v = parseFloat(limitInput)
-              if (Number.isFinite(v) && v > 0) setCreditCardLimit(v)
-            }}
-          >
-            Salvar limite
-          </Button>
+        <CardContent>
+          {creditCards.length === 0 ? (
+            <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-8 text-center">
+              <CreditCard className="h-10 w-10 text-muted-foreground/60" />
+              <div>
+                <p className="font-medium text-foreground">Nenhum cartão cadastrado</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Informe nome, número do cartão, CVC e validade.
+                </p>
+              </div>
+              <Button
+                type="button"
+                className="gap-2"
+                onClick={() => {
+                  setEditingCard(null)
+                  setAddCardOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar cartão de crédito
+              </Button>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {creditCards.map((card) => (
+                <li
+                  key={card.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/10 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">{card.name}</p>
+                    <p className="mt-0.5 font-mono text-sm text-muted-foreground">
+                      {maskCardNumber(card.cardNumber)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Validade {card.expiry}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label={`Editar ${card.name}`}
+                      onClick={() => {
+                        setEditingCard(card)
+                        setAddCardOpen(true)
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      aria-label={`Remover ${card.name}`}
+                      onClick={() => {
+                        removeCreditCard(card.id)
+                        toast.success('Cartão removido.')
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
 
@@ -470,6 +539,14 @@ export default function CartaoCreditoPage() {
       </div>
 
       <CreditCardExpenseDialog open={addOpen} onOpenChange={setAddOpen} />
+      <CreditCardAddDialog
+        open={addCardOpen}
+        onOpenChange={(open) => {
+          setAddCardOpen(open)
+          if (!open) setEditingCard(null)
+        }}
+        editingCard={editingCard}
+      />
     </div>
   )
 }

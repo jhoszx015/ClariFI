@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -9,6 +10,63 @@ import { parseMoneyBr } from '@/lib/utils'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+
+type CalcResult = {
+  futureValue: number
+  totalContributed: number
+  interestGain: number
+  months: number
+}
+
+function parseMoneyOrZero(input: string): number | null {
+  const trimmed = input.trim()
+  if (!trimmed) return 0
+  const value = parseMoneyBr(trimmed)
+  return Number.isFinite(value) ? value : null
+}
+
+function computeCompoundInterest(params: {
+  principal: string
+  monthlyContrib: string
+  rateAnnualPct: string
+  period: string
+  unit: 'years' | 'months'
+}): CalcResult | null {
+  const pv = parseMoneyOrZero(params.principal)
+  const pmt = parseMoneyOrZero(params.monthlyContrib)
+  const annual = parseFloat(params.rateAnnualPct.replace(',', '.')) / 100
+  const p = parseFloat(params.period.replace(',', '.'))
+
+  if (
+    pv === null ||
+    pv < 0 ||
+    pmt === null ||
+    pmt < 0 ||
+    !Number.isFinite(annual) ||
+    annual < 0 ||
+    !Number.isFinite(p) ||
+    p <= 0
+  ) {
+    return null
+  }
+
+  const months = params.unit === 'years' ? Math.round(p * 12) : Math.round(p)
+  if (months <= 0) return null
+
+  const r = annual / 12
+  const fvFromPv = pv * Math.pow(1 + r, months)
+  const fvFromPmt = r === 0 ? pmt * months : (pmt * (Math.pow(1 + r, months) - 1)) / r
+  const fv = fvFromPv + fvFromPmt
+  const totalContributed = pv + pmt * months
+  const interestGain = fv - totalContributed
+
+  return {
+    futureValue: fv,
+    totalContributed,
+    interestGain,
+    months,
+  }
+}
 
 /**
  * Juro composto com capitalização mensal, valor inicial, aporte mensal recorrente
@@ -20,39 +78,38 @@ export function CompoundInterestCalculator() {
   const [rateAnnualPct, setRateAnnualPct] = useState('12')
   const [period, setPeriod] = useState('5')
   const [unit, setUnit] = useState<'years' | 'months'>('years')
+  const [result, setResult] = useState<CalcResult | null>(() =>
+    computeCompoundInterest({
+      principal: '10000',
+      monthlyContrib: '0',
+      rateAnnualPct: '12',
+      period: '5',
+      unit: 'years',
+    }),
+  )
 
-  const result = useMemo(() => {
-    const pv = parseMoneyBr(principal)
-    const pmt = parseMoneyBr(monthlyContrib)
-    const annual = parseFloat(rateAnnualPct.replace(',', '.')) / 100
-    const p = parseFloat(period.replace(',', '.'))
-    if (
-      !Number.isFinite(pv) ||
-      pv < 0 ||
-      !Number.isFinite(pmt) ||
-      pmt < 0 ||
-      !Number.isFinite(annual) ||
-      !Number.isFinite(p) ||
-      p <= 0
-    ) {
-      return null
-    }
-    const months = unit === 'years' ? Math.round(p * 12) : Math.round(p)
-    if (months <= 0) return null
-    const r = annual / 12
-    const fvFromPv = pv * Math.pow(1 + r, months)
-    const fvFromPmt =
-      r === 0 ? pmt * months : (pmt * (Math.pow(1 + r, months) - 1)) / r
-    const fv = fvFromPv + fvFromPmt
-    const totalContributed = pv + pmt * months
-    const interestGain = fv - totalContributed
-    return {
-      futureValue: fv,
-      totalContributed,
-      interestGain,
-      months,
-    }
-  }, [principal, monthlyContrib, rateAnnualPct, period, unit])
+  const canCalculate = useMemo(
+    () =>
+      computeCompoundInterest({
+        principal,
+        monthlyContrib,
+        rateAnnualPct,
+        period,
+        unit,
+      }) !== null,
+    [principal, monthlyContrib, rateAnnualPct, period, unit],
+  )
+
+  const handleCalculate = () => {
+    const next = computeCompoundInterest({
+      principal,
+      monthlyContrib,
+      rateAnnualPct,
+      period,
+      unit,
+    })
+    if (next) setResult(next)
+  }
 
   return (
     <Card className="border-border/60">
@@ -108,6 +165,11 @@ export function CompoundInterestCalculator() {
             </TabsList>
           </Tabs>
         </div>
+
+        <Button type="button" className="w-full sm:w-auto" disabled={!canCalculate} onClick={handleCalculate}>
+          Calcular
+        </Button>
+
         {result && (
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

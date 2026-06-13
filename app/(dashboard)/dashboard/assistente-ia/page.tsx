@@ -1,13 +1,24 @@
 'use client'
 
-import { AiAssistantChat } from '@/components/clarifi/ai-assistant-chat'
-import { DashboardPanelBack } from '@/components/clarifi/dashboard-panel-back'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
+import { useAiAssistant } from '@/components/clarifi/ai-assistant-context'
+import { Spinner } from '@/components/ui/spinner'
+
+/** Rota legada — abre o widget flutuante e volta ao painel. */
 export default function AssistenteIaPage() {
+  const router = useRouter()
+  const { setOpen } = useAiAssistant()
+
+  useEffect(() => {
+    setOpen(true)
+    router.replace('/dashboard')
+  }, [router, setOpen])
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <DashboardPanelBack />
-      <AiAssistantChat variant="page" className="min-h-[min(72vh,640px)]" />
+    <div className="flex min-h-[40vh] items-center justify-center">
+      <Spinner className="size-8 text-primary" />
     </div>
   )
 }

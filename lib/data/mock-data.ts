@@ -256,45 +256,27 @@ export const mockGoals: Goal[] = [
   },
 ]
 
-// Mock Alerts
+// Mock Alerts (apenas entradas/saídas)
 export const mockAlerts: Alert[] = [
   {
     id: 'a1',
-    type: 'warning',
-    category: 'budget',
-    title: 'Compras acima do previsto',
-    message: 'A categoria compras subiu 22% neste mês. Revise antes de novas compras.',
+    type: 'info',
+    category: 'transaction',
+    title: 'Saída de R$ 89,90',
+    message: '',
     createdAt: daysAgo(1),
     isRead: false,
-    actionUrl: '/dashboard/controle',
+    actionUrl: '/dashboard/transacoes',
   },
   {
     id: 'a2',
-    type: 'info',
-    category: 'goal',
-    title: 'Meta de emergência evoluindo',
-    message: 'Você já concluiu 36% da meta de reserva.',
+    type: 'success',
+    category: 'transaction',
+    title: 'Entrada de R$ 4.500,00',
+    message: '',
     createdAt: daysAgo(2),
     isRead: false,
-  },
-  {
-    id: 'a3',
-    type: 'danger',
-    category: 'budget',
-    title: 'Risco de exceder despesas variáveis',
-    message: 'Se mantiver o ritmo atual, compras e lazer podem ultrapassar o limite mensal em até 12%.',
-    createdAt: daysAgo(0),
-    isRead: false,
-    actionUrl: '/dashboard/controle',
-  },
-  {
-    id: 'a4',
-    type: 'success',
-    category: 'achievement',
-    title: 'Meta de viagem avançou',
-    message: 'Você adicionou aportes por 3 meses seguidos na meta de viagem.',
-    createdAt: daysAgo(3),
-    isRead: true,
+    actionUrl: '/dashboard/transacoes',
   },
 ]
 

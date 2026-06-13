@@ -53,7 +53,7 @@ export const DASHBOARD_TOUR_STEPS: DashboardTourStep[] = [
     target: 'header-actions',
     title: 'Tema e alertas',
     body: 'Aqui você alterna entre modo claro e escuro e abre as notificações — o essencial do topo, sem distrações.',
-    tip: 'O ícone do sino mostra quando há alertas novos.',
+    tip: 'O ícone do sino avisa quando há entradas ou saídas novas.',
     icon: PanelTop,
     placement: 'bottom',
     continueLabel: 'Continuar',

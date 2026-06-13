@@ -99,16 +99,14 @@ export function AiAssistantChat({ variant = 'page', className }: Props) {
       )}
 
       {compact && (
-        <div className="shrink-0 border-b border-border/60 px-3 pb-3 pt-2 text-center">
-          <p className="text-xs font-medium uppercase tracking-wide text-destructive">Assistente de IA</p>
-          <p className="mt-1 text-sm font-semibold text-foreground">Pergunte qualquer coisa sobre seu dinheiro.</p>
-          <div className="mt-3 flex max-h-[min(40vh,220px)] flex-col gap-2 overflow-y-auto pr-1">
+        <div className="shrink-0 border-b border-border/60 px-3 pb-2.5 pt-2">
+          <div className="flex max-h-[120px] flex-wrap gap-1.5 overflow-y-auto">
             {suggestions.map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setInput(s)}
-                className="rounded-full border border-border/60 bg-muted/30 px-3 py-2 text-left text-xs text-foreground transition-colors hover:bg-muted/60"
+                className="rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-left text-[11px] leading-snug text-foreground transition-colors hover:bg-muted/60"
               >
                 {s}
               </button>
@@ -215,7 +213,7 @@ export function AiAssistantChat({ variant = 'page', className }: Props) {
                 send()
               }
             }}
-            className={cn('min-h-[72px] resize-none', compact && 'min-h-[64px] text-sm')}
+            className={cn('min-h-[56px] resize-none', compact && 'min-h-[52px] text-sm')}
           />
           <div className="flex justify-end">
             <Button type="button" size={compact ? 'sm' : 'default'} className="gap-2" onClick={send}>

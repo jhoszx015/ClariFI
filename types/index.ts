@@ -72,6 +72,19 @@ export type FinanceScope = 'personal' | 'household'
 /** Meio de pagamento — usado na tela Cartão de crédito. */
 export type TransactionPaymentMethod = 'conta' | 'cartao_credito'
 
+/** Cartão de crédito cadastrado pelo usuário na aba Cartão. */
+export interface CreditCardAccount {
+  id: string
+  /** Nome impresso no cartão ou apelido escolhido pelo usuário. */
+  name: string
+  /** Número completo (apenas dígitos). */
+  cardNumber: string
+  cvc: string
+  /** Validade no formato MM/AA. */
+  expiry: string
+  createdAt: Date
+}
+
 export interface Transaction {
   id: string
   description: string
@@ -204,6 +217,7 @@ export interface BehaviorHistoryPoint {
 // Alert Types
 export type AlertType = 'warning' | 'danger' | 'success' | 'info'
 export type AlertCategory =
+  | 'transaction'
   | 'impulse'
   | 'budget'
   | 'goal'
