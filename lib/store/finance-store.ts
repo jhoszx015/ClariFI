@@ -921,7 +921,7 @@ export const useFinanceStore = create<FinanceState>()(
                   cardNumber: `000000000000${lastFour}`.slice(-16),
                   cvc: '000',
                   expiry: '12/30',
-                  createdAt: c.createdAt ?? new Date(),
+                  createdAt: toDateOrFallback(c.createdAt),
                 } satisfies CreditCardAccount
               })
               .filter(Boolean),

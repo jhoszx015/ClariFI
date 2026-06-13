@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactElement } from 'react'
 import {
   LineChart,
   Line,
@@ -15,6 +15,7 @@ import {
   Legend,
   Sector,
 } from 'recharts'
+import type { PieSectorDataItem } from 'recharts/types/polar/Pie'
 import { cn } from '@/lib/utils'
 
 const formatPct = (v: number) => `${v.toFixed(1)}%`
@@ -131,16 +132,16 @@ function AllocationTooltip({
   )
 }
 
-function renderActiveSlice(props: {
-  cx: number
-  cy: number
-  innerRadius: number
-  outerRadius: number
-  startAngle: number
-  endAngle: number
-  fill: string
-}) {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props
+function renderActiveSlice(props: unknown): ReactElement {
+  const {
+    cx = 0,
+    cy = 0,
+    innerRadius = 0,
+    outerRadius = 0,
+    startAngle = 0,
+    endAngle = 0,
+    fill = '#888',
+  } = props as PieSectorDataItem
   return (
     <Sector
       cx={cx}
